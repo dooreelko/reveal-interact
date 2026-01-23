@@ -1,0 +1,16 @@
+{
+  "name": "@revint/api",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "lerna run build",
+    "clean": "lerna run clean"
+  },
+  "devDependencies": {
+    "lerna": "^8.1.0",
+    "typescript": "^5.3.0"
+  }
+}

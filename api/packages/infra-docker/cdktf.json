@@ -1,0 +1,9 @@
+{
+  "language": "typescript",
+  "app": "npx ts-node src/main.ts",
+  "projectId": "revint-infra-docker",
+  "sendCrashReports": "false",
+  "terraformProviders": [],
+  "terraformModules": [],
+  "context": {}
+}

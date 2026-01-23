@@ -1,0 +1,1 @@
+prompt = """execute `moth show` and if there's a current task, start implementing it."""

@@ -1,0 +1,22 @@
+{
+  "name": "@revint/infra-cloudflare",
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "synth": "cdktf synth",
+    "deploy": "cdktf deploy",
+    "destroy": "cdktf destroy"
+  },
+  "dependencies": {
+    "@cdktf/provider-cloudflare": "^11.0.0",
+    "cdktf": "^0.20.0",
+    "constructs": "^10.3.0"
+  },
+  "devDependencies": {
+    "cdktf-cli": "^0.20.0",
+    "typescript": "^5.3.0"
+  }
+}
