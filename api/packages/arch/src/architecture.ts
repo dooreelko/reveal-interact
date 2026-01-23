@@ -1,4 +1,4 @@
-import { Architecture, ApiContainer, TBDFunction } from "@arinoto/cdk-arch";
+import { Architecture, ApiContainer, TBDFunction, Function } from "@arinoto/cdk-arch";
 import { DataStore } from "./data-store";
 import { WsContainer } from "./ws-container";
 import {
@@ -19,30 +19,97 @@ export const hostStore = new DataStore<Host>(arch, "host-store");
 export const userStore = new DataStore<User>(arch, "user-store");
 export const reactionStore = new DataStore<Reaction>(arch, "reaction-store");
 
+// Utility functions
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 15);
+}
+
 // API functions
-export const newSessionFunction = new TBDFunction<[string], NewSessionResponse>(
+export const newSessionFunction = new Function<[string], NewSessionResponse>(
   arch,
-  "new-session"
+  "new-session",
+  async (token: string): Promise<NewSessionResponse> => {
+    // TODO: Validate token with stored public key
+    const sid = generateId();
+    const uid = generateId();
+
+    // Store host record
+    await hostStore.store(sid, { sid, uid });
+
+    // Initialize session state
+    await sessionStore.store(sid, { sid, page: "0", state: "init" });
+
+    return { sid, uid };
+  }
 );
 
-export const loginFunction = new TBDFunction<[], LoginResponse>(
+export const loginFunction = new Function<[], LoginResponse>(
   arch,
-  "login"
+  "login",
+  async (): Promise<LoginResponse> => {
+    // TODO: Get session from cookie/header and associate user
+    const uid = generateId();
+    return { uid };
+  }
 );
 
-export const reactFunction = new TBDFunction<
+export const reactFunction = new Function<
   [string, string, string, string],
   { success: boolean }
->(arch, "react");
+>(
+  arch,
+  "react",
+  async (
+    token: string,
+    uid: string,
+    page: string,
+    reaction: string
+  ): Promise<{ success: boolean }> => {
+    // TODO: Validate token and extract sid
+    const sid = token; // Simplified: using token as sid for now
 
-export const setStateFunction = new TBDFunction<
+    const reactionDoc: Reaction = {
+      time: Date.now(),
+      sid,
+      uid,
+      page,
+      reaction,
+    };
+
+    await reactionStore.store(sid, reactionDoc);
+    return { success: true };
+  }
+);
+
+export const setStateFunction = new Function<
   [string, string, string],
   { success: boolean }
->(arch, "set-state");
-
-export const getStateFunction = new TBDFunction<[string], Session | null>(
+>(
   arch,
-  "get-state"
+  "set-state",
+  async (
+    token: string,
+    page: string,
+    state: string
+  ): Promise<{ success: boolean }> => {
+    // TODO: Validate token, check host permission
+    const sid = token; // Simplified: using token as sid for now
+
+    const sessionDoc: Session = { sid, page, state };
+    await sessionStore.store(sid, sessionDoc);
+
+    // TODO: Broadcast to WebSocket clients
+    return { success: true };
+  }
+);
+
+export const getStateFunction = new Function<[string], Session | null>(
+  arch,
+  "get-state",
+  async (sid: string): Promise<Session | null> => {
+    const sessions = await sessionStore.get(sid);
+    return sessions.length > 0 ? sessions[0] : null;
+  }
 );
 
 // REST API container

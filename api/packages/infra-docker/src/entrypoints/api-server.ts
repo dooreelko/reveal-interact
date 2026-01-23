@@ -6,16 +6,6 @@ import {
   hostStore,
   userStore,
   reactionStore,
-  newSessionFunction,
-  loginFunction,
-  reactFunction,
-  setStateFunction,
-  getStateFunction,
-  Session,
-  Host,
-  Reaction,
-  NewSessionResponse,
-  LoginResponse,
 } from "@revint/arch";
 import { DockerApiServer } from "../docker-api-server";
 import { httpHandler } from "../http-handler";
@@ -68,78 +58,8 @@ reactionStore.storeFunction.overload(httpHandler(datastoreEndpoint, datastoreApi
 reactionStore.getFunction.overload(httpHandler(datastoreEndpoint, datastoreApi, "reaction-get") as never);
 reactionStore.getAllFunction.overload(httpHandler(datastoreEndpoint, datastoreApi, "reaction-getAll") as never);
 
-// Generate unique IDs
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 15);
-}
-
-// Implement API functions
-newSessionFunction.overload(async (token: string): Promise<NewSessionResponse> => {
-  // TODO: Validate token with public key
-  const sid = generateId();
-  const uid = generateId();
-
-  // Store host
-  await hostStore.store(sid, { sid, uid } as Host);
-
-  // Initialize session
-  await sessionStore.store(sid, { sid, page: "0", state: "init" } as Session);
-
-  return { sid, uid };
-});
-
-loginFunction.overload(async (): Promise<LoginResponse> => {
-  // TODO: Get session from cookie/header, create user
-  const uid = generateId();
-  return { uid };
-});
-
-reactFunction.overload(
-  async (
-    token: string,
-    uid: string,
-    page: string,
-    reaction: string
-  ): Promise<{ success: boolean }> => {
-    // TODO: Validate token, get sid
-    const sid = token; // Simplified: using token as sid for now
-
-    const reactionDoc: Reaction = {
-      time: Date.now(),
-      sid,
-      uid,
-      page,
-      reaction,
-    };
-
-    await reactionStore.store(sid, reactionDoc);
-    return { success: true };
-  }
-);
-
-setStateFunction.overload(
-  async (
-    token: string,
-    page: string,
-    state: string
-  ): Promise<{ success: boolean }> => {
-    // TODO: Validate token, check host permission
-    const sid = token; // Simplified: using token as sid for now
-
-    const sessionDoc: Session = { sid, page, state };
-    await sessionStore.store(sid, sessionDoc);
-
-    // TODO: Broadcast to WebSocket clients
-    console.log(`State change: sid=${sid}, page=${page}, state=${state}`);
-
-    return { success: true };
-  }
-);
-
-getStateFunction.overload(async (sid: string): Promise<Session | null> => {
-  const sessions = await sessionStore.get(sid);
-  return sessions.length > 0 ? (sessions[0] as Session) : null;
-});
+// API functions are implemented in @revint/arch
+// Store functions are overloaded above to use HTTP to datastore service
 
 // Bind API locally
 architectureBinding.bind(api, { host: "api", port: PORT });
