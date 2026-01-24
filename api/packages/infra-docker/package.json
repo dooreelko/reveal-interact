@@ -15,7 +15,7 @@
     "test:e2e": "./scripts/e2e-test.sh"
   },
   "dependencies": {
-    "@arinoto/cdk-arch": "^0.1.4",
+    "@arinoto/cdk-arch": "^0.2.0",
     "@cdktf/provider-docker": "^11.0.0",
     "@revint/arch": "*",
     "cdktf": "^0.20.0",

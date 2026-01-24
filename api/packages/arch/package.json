@@ -14,7 +14,7 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
-    "@arinoto/cdk-arch": "^0.1.4",
+    "@arinoto/cdk-arch": "^0.2.0",
     "constructs": "^10.4.5"
   }
 }
