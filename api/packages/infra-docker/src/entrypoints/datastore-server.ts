@@ -1,7 +1,9 @@
 import express from "express";
 import { Pool } from "pg";
-import { architectureBinding, ApiContainer } from "@arinoto/cdk-arch";
+import { architectureBinding } from "@arinoto/cdk-arch";
 import {
+  arch,
+  datastoreApi,
   sessionStore,
   hostStore,
   userStore,
@@ -82,52 +84,32 @@ function createPostgresGetAll<TDoc>(storeName: string) {
   };
 }
 
-// Create a combined API container for all data stores
-const datastoreApi = new ApiContainer(
-  { node: { id: "datastore-api" } } as never,
-  "datastore-api"
-);
-
-// Add routes for each store
-datastoreApi.addRoute("session-store", "POST /store/session/{key}", sessionStore.storeFunction);
-datastoreApi.addRoute("session-get", "GET /store/session/{key}", sessionStore.getFunction);
-datastoreApi.addRoute("session-getAll", "GET /store/session", sessionStore.getAllFunction);
-
-datastoreApi.addRoute("host-store", "POST /store/host/{key}", hostStore.storeFunction);
-datastoreApi.addRoute("host-get", "GET /store/host/{key}", hostStore.getFunction);
-datastoreApi.addRoute("host-getAll", "GET /store/host", hostStore.getAllFunction);
-
-datastoreApi.addRoute("user-store", "POST /store/user/{key}", userStore.storeFunction);
-datastoreApi.addRoute("user-get", "GET /store/user/{key}", userStore.getFunction);
-datastoreApi.addRoute("user-getAll", "GET /store/user", userStore.getAllFunction);
-
-datastoreApi.addRoute("reaction-store", "POST /store/reaction/{key}", reactionStore.storeFunction);
-datastoreApi.addRoute("reaction-get", "GET /store/reaction/{key}", reactionStore.getFunction);
-datastoreApi.addRoute("reaction-getAll", "GET /store/reaction", reactionStore.getAllFunction);
-
 // Bind stores with PostgreSQL overloads
 async function main() {
   await initDb();
 
-  // Overload each store with PostgreSQL handlers
-  sessionStore.storeFunction.overload(createPostgresStore<Session>("session"));
-  sessionStore.getFunction.overload(createPostgresGet<Session>("session"));
-  sessionStore.getAllFunction.overload(createPostgresGetAll<Session>("session"));
+  // Bind the datastore API locally with PostgreSQL implementations
+  architectureBinding.bind(datastoreApi, {
+    host: "datastore",
+    port: PORT,
+    overloads: {
+      "session-store": createPostgresStore<Session>("session"),
+      "session-get": createPostgresGet<Session>("session"),
+      "session-getAll": createPostgresGetAll<Session>("session"),
 
-  hostStore.storeFunction.overload(createPostgresStore<Host>("host"));
-  hostStore.getFunction.overload(createPostgresGet<Host>("host"));
-  hostStore.getAllFunction.overload(createPostgresGetAll<Host>("host"));
+      "host-store": createPostgresStore<Host>("host"),
+      "host-get": createPostgresGet<Host>("host"),
+      "host-getAll": createPostgresGetAll<Host>("host"),
 
-  userStore.storeFunction.overload(createPostgresStore<User>("user"));
-  userStore.getFunction.overload(createPostgresGet<User>("user"));
-  userStore.getAllFunction.overload(createPostgresGetAll<User>("user"));
+      "user-store": createPostgresStore<User>("user"),
+      "user-get": createPostgresGet<User>("user"),
+      "user-getAll": createPostgresGetAll<User>("user"),
 
-  reactionStore.storeFunction.overload(createPostgresStore<Reaction>("reaction"));
-  reactionStore.getFunction.overload(createPostgresGet<Reaction>("reaction"));
-  reactionStore.getAllFunction.overload(createPostgresGetAll<Reaction>("reaction"));
-
-  // Bind the datastore API locally
-  architectureBinding.bind(datastoreApi, { host: "datastore", port: PORT });
+      "reaction-store": createPostgresStore<Reaction>("reaction"),
+      "reaction-get": createPostgresGet<Reaction>("reaction"),
+      "reaction-getAll": createPostgresGetAll<Reaction>("reaction"),
+    },
+  });
 
   // Start server
   const server = new DockerApiServer(datastoreApi, {

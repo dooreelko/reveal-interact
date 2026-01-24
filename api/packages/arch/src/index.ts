@@ -9,6 +9,7 @@ export { WsContainer, WsRouteEntry, WsRoutes } from "./ws-container";
 export {
   arch,
   api,
+  datastoreApi,
   ws,
   sessionStore,
   hostStore,
