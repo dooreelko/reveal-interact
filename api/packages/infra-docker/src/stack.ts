@@ -22,6 +22,15 @@ function loadPublicKey(): string | undefined {
   return process.env.PUBLIC_KEY;
 }
 
+// Common PostgreSQL environment variables
+const postgresEnv = [
+  "POSTGRES_HOST=postgres",
+  "POSTGRES_PORT=5432",
+  "POSTGRES_DB=revint",
+  "POSTGRES_USER=postgres",
+  "POSTGRES_PASSWORD=postgres",
+];
+
 export class LocalDockerStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
@@ -82,33 +91,77 @@ export class LocalDockerStack extends TerraformStack {
       mustRun: true,
     });
 
-    // Datastore container
-    new Container(this, "datastore-container", {
-      name: "revint-datastore",
+    // Session Store container
+    new Container(this, "session-store-container", {
+      name: "revint-session-store",
       image: appImage.imageId,
-      env: [
-        "PORT=3001",
-        "POSTGRES_HOST=postgres",
-        "POSTGRES_PORT=5432",
-        "POSTGRES_DB=revint",
-        "POSTGRES_USER=postgres",
-        "POSTGRES_PASSWORD=postgres",
-      ],
+      env: ["PORT=3011", ...postgresEnv],
       networksAdvanced: [
         {
           name: appNetwork.name,
-          aliases: ["datastore"],
+          aliases: ["session-store"],
         },
       ],
-      command: ["node", "datastore-server.js"],
+      command: ["node", "session-store-server.js"],
+      mustRun: true,
+    });
+
+    // Host Store container
+    new Container(this, "host-store-container", {
+      name: "revint-host-store",
+      image: appImage.imageId,
+      env: ["PORT=3012", ...postgresEnv],
+      networksAdvanced: [
+        {
+          name: appNetwork.name,
+          aliases: ["host-store"],
+        },
+      ],
+      command: ["node", "host-store-server.js"],
+      mustRun: true,
+    });
+
+    // User Store container
+    new Container(this, "user-store-container", {
+      name: "revint-user-store",
+      image: appImage.imageId,
+      env: ["PORT=3013", ...postgresEnv],
+      networksAdvanced: [
+        {
+          name: appNetwork.name,
+          aliases: ["user-store"],
+        },
+      ],
+      command: ["node", "user-store-server.js"],
+      mustRun: true,
+    });
+
+    // Reaction Store container
+    new Container(this, "reaction-store-container", {
+      name: "revint-reaction-store",
+      image: appImage.imageId,
+      env: ["PORT=3014", ...postgresEnv],
+      networksAdvanced: [
+        {
+          name: appNetwork.name,
+          aliases: ["reaction-store"],
+        },
+      ],
+      command: ["node", "reaction-store-server.js"],
       mustRun: true,
     });
 
     // API container
     const apiEnv = [
       "PORT=3000",
-      "DATASTORE_HOST=datastore",
-      "DATASTORE_PORT=3001",
+      "SESSION_STORE_HOST=session-store",
+      "SESSION_STORE_PORT=3011",
+      "HOST_STORE_HOST=host-store",
+      "HOST_STORE_PORT=3012",
+      "USER_STORE_HOST=user-store",
+      "USER_STORE_PORT=3013",
+      "REACTION_STORE_HOST=reaction-store",
+      "REACTION_STORE_PORT=3014",
     ];
     if (publicKey) {
       apiEnv.push(`PUBLIC_KEY=${publicKey}`);

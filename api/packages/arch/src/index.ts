@@ -9,7 +9,10 @@ export { WsContainer, WsRouteEntry, WsRouteInput, WsRoutes, WsRoutesInput } from
 export {
   arch,
   api,
-  datastoreApi,
+  sessionStoreApi,
+  hostStoreApi,
+  userStoreApi,
+  reactionStoreApi,
   ws,
   sessionStore,
   hostStore,

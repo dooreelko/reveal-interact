@@ -206,20 +206,29 @@ export const api = new ApiContainer(arch, "api", {
   getState: { path: "GET /api/v1/session/{token}/state", handler: getStateFunction },
 });
 
-// Datastore API container (internal)
-export const datastoreApi = new ApiContainer(arch, "datastore-api", {
-  "session-store": { path: "POST /store/session/{key}", handler: sessionStore.storeFunction },
-  "session-get": { path: "GET /store/session/{key}", handler: sessionStore.getFunction },
-  "session-getAll": { path: "GET /store/session", handler: sessionStore.getAllFunction },
-  "host-store": { path: "POST /store/host/{key}", handler: hostStore.storeFunction },
-  "host-get": { path: "GET /store/host/{key}", handler: hostStore.getFunction },
-  "host-getAll": { path: "GET /store/host", handler: hostStore.getAllFunction },
-  "user-store": { path: "POST /store/user/{key}", handler: userStore.storeFunction },
-  "user-get": { path: "GET /store/user/{key}", handler: userStore.getFunction },
-  "user-getAll": { path: "GET /store/user", handler: userStore.getAllFunction },
-  "reaction-store": { path: "POST /store/reaction/{key}", handler: reactionStore.storeFunction },
-  "reaction-get": { path: "GET /store/reaction/{key}", handler: reactionStore.getFunction },
-  "reaction-getAll": { path: "GET /store/reaction", handler: reactionStore.getAllFunction },
+// Individual datastore API containers
+export const sessionStoreApi = new ApiContainer(arch, "session-store-api", {
+  store: { path: "POST /store/{key}", handler: sessionStore.storeFunction },
+  get: { path: "GET /store/{key}", handler: sessionStore.getFunction },
+  getAll: { path: "GET /store", handler: sessionStore.getAllFunction },
+});
+
+export const hostStoreApi = new ApiContainer(arch, "host-store-api", {
+  store: { path: "POST /store/{key}", handler: hostStore.storeFunction },
+  get: { path: "GET /store/{key}", handler: hostStore.getFunction },
+  getAll: { path: "GET /store", handler: hostStore.getAllFunction },
+});
+
+export const userStoreApi = new ApiContainer(arch, "user-store-api", {
+  store: { path: "POST /store/{key}", handler: userStore.storeFunction },
+  get: { path: "GET /store/{key}", handler: userStore.getFunction },
+  getAll: { path: "GET /store", handler: userStore.getAllFunction },
+});
+
+export const reactionStoreApi = new ApiContainer(arch, "reaction-store-api", {
+  store: { path: "POST /store/{key}", handler: reactionStore.storeFunction },
+  get: { path: "GET /store/{key}", handler: reactionStore.getFunction },
+  getAll: { path: "GET /store", handler: reactionStore.getAllFunction },
 });
 
 // WebSocket container
