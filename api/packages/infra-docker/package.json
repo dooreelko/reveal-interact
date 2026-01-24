@@ -11,7 +11,8 @@
     "clean": "rm -rf dist",
     "synth": "cdktf synth",
     "deploy": "npm run build:docker && cdktf deploy --auto-approve",
-    "destroy": "cdktf destroy --auto-approve"
+    "destroy": "cdktf destroy --auto-approve",
+    "test:e2e": "./scripts/e2e-test.sh"
   },
   "dependencies": {
     "@arinoto/cdk-arch": "^0.1.4",

@@ -172,7 +172,7 @@ export class LocalDockerStack extends TerraformStack {
     });
 
     new TerraformOutput(this, "example-get-state", {
-      value: "curl http://localhost:3000/api/v1/session/{sid}/state",
+      value: "curl http://localhost:3000/api/v1/session/{token}/state",
       description: "Example: Get session state",
     });
   }
