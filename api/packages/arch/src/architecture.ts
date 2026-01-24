@@ -228,8 +228,8 @@ export const ws = new WsContainer(arch, "ws", {
   userPipe: { path: "/ws/v1/session/{token}/user/{uid}/pipe" },
 });
 
-export const hostPipe = ws.getRouteByName("hostPipe")!;
-export const userPipe = ws.getRouteByName("userPipe")!;
+export const hostPipe = ws.getRoute("hostPipe");
+export const userPipe = ws.getRoute("userPipe");
 
 // Export utility functions for use by other packages
 export { verifyToken };

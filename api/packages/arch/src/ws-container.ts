@@ -2,7 +2,6 @@ import { Construct } from "constructs";
 import { Function, TBDFunction } from "@arinoto/cdk-arch";
 
 export interface WsRouteEntry {
-  name: string;
   path: string;
   onConnect: Function<unknown[], unknown>;
   onMessage: Function<unknown[], unknown>;
@@ -11,14 +10,16 @@ export interface WsRouteEntry {
 
 export interface WsRouteInput {
   path: string;
-  handlers?: {
-    onConnect?: Function<unknown[], unknown>;
-    onMessage?: Function<unknown[], unknown>;
-    onDisconnect?: Function<unknown[], unknown>;
-  };
+  onConnect?: Function<unknown[], unknown>;
+  onMessage?: Function<unknown[], unknown>;
+  onDisconnect?: Function<unknown[], unknown>;
 }
 
 export interface WsRoutes {
+  [name: string]: WsRouteEntry;
+}
+
+export interface WsRoutesInput {
   [name: string]: WsRouteInput;
 }
 
@@ -27,12 +28,18 @@ export interface WsRoutes {
  * Each route has handlers for connect, message, and disconnect events.
  */
 export class WsContainer extends Construct {
-  private namedRoutes: Map<string, WsRouteEntry> = new Map();
+  public readonly routes: WsRoutes;
 
-  constructor(scope: Construct, id: string, routes: WsRoutes = {}) {
+  constructor(scope: Construct, id: string, routes: WsRoutesInput = {}) {
     super(scope, id);
+    this.routes = {};
     for (const [name, input] of Object.entries(routes)) {
-      this.addRoute(name, input.path, input.handlers);
+      this.routes[name] = {
+        path: input.path,
+        onConnect: input.onConnect ?? new TBDFunction(this, `${name}-connect`),
+        onMessage: input.onMessage ?? new TBDFunction(this, `${name}-message`),
+        onDisconnect: input.onDisconnect ?? new TBDFunction(this, `${name}-disconnect`),
+      };
     }
   }
 
@@ -44,29 +51,30 @@ export class WsContainer extends Construct {
       onMessage?: Function<unknown[], unknown>;
       onDisconnect?: Function<unknown[], unknown>;
     }
-  ): WsRouteEntry {
-    const entry: WsRouteEntry = {
-      name,
+  ): void {
+    this.routes[name] = {
       path,
       onConnect: handlers?.onConnect ?? new TBDFunction(this, `${name}-connect`),
       onMessage: handlers?.onMessage ?? new TBDFunction(this, `${name}-message`),
       onDisconnect: handlers?.onDisconnect ?? new TBDFunction(this, `${name}-disconnect`),
     };
-    this.namedRoutes.set(name, entry);
+  }
+
+  getRoute(name: string): WsRouteEntry {
+    const entry = this.routes[name];
+    if (!entry) {
+      throw new Error(`Route '${name}' not found in container '${this.node.id}'`);
+    }
     return entry;
   }
 
-  getRouteByName(name: string): WsRouteEntry | undefined {
-    return this.namedRoutes.get(name);
-  }
-
-  listRoutes(): WsRouteEntry[] {
-    return Array.from(this.namedRoutes.values());
+  listRoutes(): string[] {
+    return Object.keys(this.routes);
   }
 
   validateOverloads(): TBDFunction<unknown[], unknown>[] {
     const unimplemented: TBDFunction<unknown[], unknown>[] = [];
-    for (const route of this.namedRoutes.values()) {
+    for (const route of Object.values(this.routes)) {
       if (route.onConnect instanceof TBDFunction && !route.onConnect.hasOverload()) {
         unimplemented.push(route.onConnect);
       }

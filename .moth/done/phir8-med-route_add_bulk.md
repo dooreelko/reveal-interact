@@ -11,9 +11,12 @@ instead of calling addRoute for each, pass them as an object to the ApiContainer
 - Routes format: `{ [name: string]: { path: string, handler: Function } }`
 
 ### WsContainer Changes
-- WsContainer (custom construct in @revint/arch) modified to accept routes in constructor
-- Routes format: `{ [name: string]: { path: string, handlers?: {...} } }` matching addRoute signature
-- Constructor processes routes and calls addRoute internally for each entry
+- WsContainer redesigned to match ApiContainer pattern from cdk-arch
+- `WsRouteEntry` no longer contains `name` field (name is the key in `WsRoutes`)
+- `public readonly routes: WsRoutes` replaces private `Map`
+- `getRouteByName()` renamed to `getRoute()`, throws if not found (like ApiContainer)
+- `listRoutes()` returns `string[]` (just names, like ApiContainer)
+- Constructor accepts `WsRoutesInput` (partial entries), creates TBDFunctions for missing handlers
 
 ### Rejected Alternatives
 - Keeping addRoute() calls for readability - rejected, bulk constructor approach preferred per task
@@ -24,8 +27,10 @@ instead of calling addRoute for each, pass them as an object to the ApiContainer
 - Fixed `getRouteByName()` → `getRoute()` to match cdk-arch ApiContainer interface
 
 ## Implementation Details
-- WsContainer constructor extended with optional `routes` parameter of type `WsRoutes`
-- New `WsRouteInput` interface exported for route configuration
-- architecture.ts refactored to pass route objects inline to constructors
-- WsContainer routes accessed via `getRouteByName()` after construction for exports
+- WsContainer uses `public readonly routes: WsRoutes` (plain object like ApiContainer)
+- `WsRoutesInput` for constructor accepts partial entries (handlers optional)
+- `WsRouteInput` interface has optional onConnect/onMessage/onDisconnect
+- Constructor fills missing handlers with TBDFunctions
+- `getRoute(name)` throws if route not found (matches ApiContainer.getRoute)
+- architecture.ts uses `ws.getRoute("hostPipe")` instead of `ws.getRouteByName("hostPipe")!`
 - addRoute methods remain available for backward compatibility
