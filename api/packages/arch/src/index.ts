@@ -3,7 +3,7 @@ export * from "./types";
 
 // Constructs
 export { DataStore } from "./data-store";
-export { WsContainer, WsRouteEntry, WsRoutes } from "./ws-container";
+export { WsContainer, WsRouteEntry, WsRouteInput, WsRoutes } from "./ws-container";
 
 // Architecture components
 export {

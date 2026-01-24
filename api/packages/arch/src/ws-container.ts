@@ -1,16 +1,25 @@
 import { Construct } from "constructs";
 import { Function, TBDFunction } from "@arinoto/cdk-arch";
 
-export interface WsRoutes {
-  [path: string]: Function<unknown[], unknown>;
-}
-
 export interface WsRouteEntry {
   name: string;
   path: string;
   onConnect: Function<unknown[], unknown>;
   onMessage: Function<unknown[], unknown>;
   onDisconnect: Function<unknown[], unknown>;
+}
+
+export interface WsRouteInput {
+  path: string;
+  handlers?: {
+    onConnect?: Function<unknown[], unknown>;
+    onMessage?: Function<unknown[], unknown>;
+    onDisconnect?: Function<unknown[], unknown>;
+  };
+}
+
+export interface WsRoutes {
+  [name: string]: WsRouteInput;
 }
 
 /**
@@ -20,8 +29,11 @@ export interface WsRouteEntry {
 export class WsContainer extends Construct {
   private namedRoutes: Map<string, WsRouteEntry> = new Map();
 
-  constructor(scope: Construct, id: string) {
+  constructor(scope: Construct, id: string, routes: WsRoutes = {}) {
     super(scope, id);
+    for (const [name, input] of Object.entries(routes)) {
+      this.addRoute(name, input.path, input.handlers);
+    }
   }
 
   addRoute(

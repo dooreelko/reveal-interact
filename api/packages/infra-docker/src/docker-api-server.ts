@@ -22,8 +22,9 @@ export class DockerApiServer {
     const app = express();
     app.use(express.json());
 
-    for (const route of this.api.listNamedRoutes()) {
-      this.setupRoute(app, route.name, route.path, route.handler);
+    for (const name of this.api.listRoutes()) {
+      const route = this.api.getRoute(name);
+      this.setupRoute(app, name, route.path, route.handler);
     }
 
     return app;

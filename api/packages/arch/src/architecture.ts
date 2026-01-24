@@ -198,54 +198,38 @@ export const getStateFunction = new Function<[string, RequestContext], Session |
 );
 
 // REST API container
-export const api = new ApiContainer(arch, "api");
-
-api.addRoute("newSession", "POST /api/v1/session/new/{token}", newSessionFunction);
-api.addRoute("login", "POST /api/v1/session/{token}/login", loginFunction);
-api.addRoute(
-  "react",
-  "POST /api/v1/session/{token}/user/{uid}/react/{page}/{reaction}",
-  reactFunction
-);
-api.addRoute(
-  "setState",
-  "POST /api/v1/session/{token}/state/{page}/{state}",
-  setStateFunction
-);
-api.addRoute("getState", "GET /api/v1/session/{token}/state", getStateFunction);
+export const api = new ApiContainer(arch, "api", {
+  newSession: { path: "POST /api/v1/session/new/{token}", handler: newSessionFunction },
+  login: { path: "POST /api/v1/session/{token}/login", handler: loginFunction },
+  react: { path: "POST /api/v1/session/{token}/user/{uid}/react/{page}/{reaction}", handler: reactFunction },
+  setState: { path: "POST /api/v1/session/{token}/state/{page}/{state}", handler: setStateFunction },
+  getState: { path: "GET /api/v1/session/{token}/state", handler: getStateFunction },
+});
 
 // Datastore API container (internal)
-export const datastoreApi = new ApiContainer(arch, "datastore-api");
-
-// Register store routes
-datastoreApi.addRoute("session-store", "POST /store/session/{key}", sessionStore.storeFunction);
-datastoreApi.addRoute("session-get", "GET /store/session/{key}", sessionStore.getFunction);
-datastoreApi.addRoute("session-getAll", "GET /store/session", sessionStore.getAllFunction);
-
-datastoreApi.addRoute("host-store", "POST /store/host/{key}", hostStore.storeFunction);
-datastoreApi.addRoute("host-get", "GET /store/host/{key}", hostStore.getFunction);
-datastoreApi.addRoute("host-getAll", "GET /store/host", hostStore.getAllFunction);
-
-datastoreApi.addRoute("user-store", "POST /store/user/{key}", userStore.storeFunction);
-datastoreApi.addRoute("user-get", "GET /store/user/{key}", userStore.getFunction);
-datastoreApi.addRoute("user-getAll", "GET /store/user", userStore.getAllFunction);
-
-datastoreApi.addRoute("reaction-store", "POST /store/reaction/{key}", reactionStore.storeFunction);
-datastoreApi.addRoute("reaction-get", "GET /store/reaction/{key}", reactionStore.getFunction);
-datastoreApi.addRoute("reaction-getAll", "GET /store/reaction", reactionStore.getAllFunction);
+export const datastoreApi = new ApiContainer(arch, "datastore-api", {
+  "session-store": { path: "POST /store/session/{key}", handler: sessionStore.storeFunction },
+  "session-get": { path: "GET /store/session/{key}", handler: sessionStore.getFunction },
+  "session-getAll": { path: "GET /store/session", handler: sessionStore.getAllFunction },
+  "host-store": { path: "POST /store/host/{key}", handler: hostStore.storeFunction },
+  "host-get": { path: "GET /store/host/{key}", handler: hostStore.getFunction },
+  "host-getAll": { path: "GET /store/host", handler: hostStore.getAllFunction },
+  "user-store": { path: "POST /store/user/{key}", handler: userStore.storeFunction },
+  "user-get": { path: "GET /store/user/{key}", handler: userStore.getFunction },
+  "user-getAll": { path: "GET /store/user", handler: userStore.getAllFunction },
+  "reaction-store": { path: "POST /store/reaction/{key}", handler: reactionStore.storeFunction },
+  "reaction-get": { path: "GET /store/reaction/{key}", handler: reactionStore.getFunction },
+  "reaction-getAll": { path: "GET /store/reaction", handler: reactionStore.getAllFunction },
+});
 
 // WebSocket container
-export const ws = new WsContainer(arch, "ws");
+export const ws = new WsContainer(arch, "ws", {
+  hostPipe: { path: "/ws/v1/session/{token}/host/{uid}/pipe" },
+  userPipe: { path: "/ws/v1/session/{token}/user/{uid}/pipe" },
+});
 
-export const hostPipe = ws.addRoute(
-  "hostPipe",
-  "/ws/v1/session/{token}/host/{uid}/pipe"
-);
-
-export const userPipe = ws.addRoute(
-  "userPipe",
-  "/ws/v1/session/{token}/user/{uid}/pipe"
-);
+export const hostPipe = ws.getRouteByName("hostPipe")!;
+export const userPipe = ws.getRouteByName("userPipe")!;
 
 // Export utility functions for use by other packages
 export { verifyToken };

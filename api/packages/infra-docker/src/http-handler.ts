@@ -8,14 +8,11 @@ export function httpHandler<TArgs extends unknown[], TReturn>(
   container: ApiContainer,
   routeName: string
 ): FunctionHandler<TArgs, TReturn> {
-  const route = container.getRouteByName(routeName);
-  if (!route) {
-    throw new Error(`Route '${routeName}' not found in container`);
-  }
+  const route = container.getRoute(routeName);
 
   const [method, rawPath] = route.path.split(" ");
   const paramMatches = rawPath.match(/\{(\w+)\}/g) || [];
-  const paramNames = paramMatches.map((m) => m.slice(1, -1));
+  const paramNames = paramMatches.map((m: string) => m.slice(1, -1));
 
   return async (...args: TArgs): Promise<TReturn> => {
     let path = rawPath;

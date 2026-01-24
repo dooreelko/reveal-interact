@@ -2,6 +2,8 @@ prompt = """execute `moth show` and if there's a current task, start implementin
 
 **ONLY IMPLEMENT THE TASK IN "doing" STATE. NVER CALL `moth done` or move files in the .moth directory** 
 
+** NEVER RUN `git add` or `git commit` **
+
 ask questions as needed. during the session update the existing md under ./moth/doing with information
 relevat to feature specification, including decisions taken and rejected. the information in the md should be enough to recreate the feature from the scratch. Under implementation details, don't describe the resulting code changes, only an abstract of how it's done.
 
