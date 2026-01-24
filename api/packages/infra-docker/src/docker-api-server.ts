@@ -1,5 +1,6 @@
 import { ApiContainer, architectureBinding, ArchitectureBinding } from "@arinoto/cdk-arch";
 import type { Application, Request, Response } from "express";
+import { RequestContext, CookieOptions, EnvConfig } from "@revint/arch";
 
 export interface DockerApiServerConfig {
   binding?: ArchitectureBinding;
@@ -28,6 +29,52 @@ export class DockerApiServer {
     return app;
   }
 
+  private parseCookies(cookieHeader: string | undefined): Record<string, string | undefined> {
+    const cookies: Record<string, string | undefined> = {};
+    if (!cookieHeader) return cookies;
+
+    cookieHeader.split(";").forEach((cookie) => {
+      const [name, ...rest] = cookie.trim().split("=");
+      if (name) {
+        cookies[name] = rest.join("=");
+      }
+    });
+
+    return cookies;
+  }
+
+  private createContext(req: Request, res: Response): RequestContext {
+    const cookies = this.parseCookies(req.headers.cookie);
+
+    return {
+      headers: req.headers as Record<string, string | undefined>,
+      cookies,
+      ip: req.ip,
+      env: process.env as EnvConfig,
+      setCookie: (name: string, value: string, options?: CookieOptions) => {
+        const cookieParts = [`${name}=${value}`];
+
+        if (options?.maxAge !== undefined) {
+          cookieParts.push(`Max-Age=${options.maxAge}`);
+        }
+        if (options?.httpOnly) {
+          cookieParts.push("HttpOnly");
+        }
+        if (options?.secure) {
+          cookieParts.push("Secure");
+        }
+        if (options?.sameSite) {
+          cookieParts.push(`SameSite=${options.sameSite}`);
+        }
+        if (options?.path) {
+          cookieParts.push(`Path=${options.path}`);
+        }
+
+        res.append("Set-Cookie", cookieParts.join("; "));
+      },
+    };
+  }
+
   private setupRoute(
     app: Application,
     name: string,
@@ -38,10 +85,15 @@ export class DockerApiServer {
 
     const expressHandler = async (req: Request, res: Response) => {
       try {
-        const args = paramNames.map((p) => req.params[p]);
+        const args: unknown[] = paramNames.map((p) => req.params[p]);
         if (req.body && Object.keys(req.body).length > 0) {
           args.push(req.body);
         }
+
+        // Add RequestContext as the last argument
+        const ctx = this.createContext(req, res);
+        args.push(ctx);
+
         const result = await handler.invoke(...args);
         res.json(result);
       } catch (error) {

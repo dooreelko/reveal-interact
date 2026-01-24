@@ -21,4 +21,6 @@ export {
   getStateFunction,
   hostPipe,
   userPipe,
+  verifyToken,
+  tokenToSid,
 } from "./architecture";

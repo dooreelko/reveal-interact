@@ -28,10 +28,12 @@ implement local docker version of the architecture
 ## Implementation Details
 - Uses Docker provider for CDKTF with podman socket support
 - Entrypoint servers use Express for HTTP, ws library for WebSocket
-- DockerApiServer pattern from cdk-arch for route handling
-- httpHandler pattern for inter-service communication
+- DockerApiServer creates RequestContext (headers, cookies, ip, env, setCookie) and passes to handlers
+- API function logic is in @revint/arch, infra-docker only overloads data store functions
+- httpHandler pattern for inter-service communication (api-server -> datastore-server)
 - PostgreSQL stores documents as JSONB with collection-based organization
 - esbuild bundles TypeScript to JavaScript for container deployment
+- Environment variables (e.g., PUBLIC_KEY) passed to containers for token verification
 
 ## File Structure
 ```

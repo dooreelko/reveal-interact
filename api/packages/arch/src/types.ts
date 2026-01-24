@@ -66,3 +66,42 @@ export interface StateChangeMessage {
   page: string;
   state: string;
 }
+
+/**
+ * Environment configuration
+ */
+export interface EnvConfig {
+  /** Public key for verifying session tokens (PEM format) */
+  PUBLIC_KEY?: string;
+  /** Node environment */
+  NODE_ENV?: string;
+  /** Allow any other env vars */
+  [key: string]: string | undefined;
+}
+
+/**
+ * Request context passed to API functions
+ */
+export interface RequestContext {
+  /** Request headers */
+  headers: Record<string, string | undefined>;
+  /** Parsed cookies */
+  cookies: Record<string, string | undefined>;
+  /** Client IP address */
+  ip?: string;
+  /** Environment configuration */
+  env: EnvConfig;
+  /** Set a cookie in the response */
+  setCookie: (name: string, value: string, options?: CookieOptions) => void;
+}
+
+/**
+ * Cookie options for setCookie
+ */
+export interface CookieOptions {
+  maxAge?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: "strict" | "lax" | "none";
+  path?: string;
+}
