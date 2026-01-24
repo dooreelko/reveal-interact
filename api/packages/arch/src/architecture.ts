@@ -63,16 +63,8 @@ function verifyToken(token: string, publicKey: string | undefined): SessionToken
 }
 
 /**
- * Generate a session ID from token data.
- * Uses a hash of the token content for deterministic IDs.
+ * API functions
  */
-function tokenToSid(tokenData: SessionToken): string {
-  const hash = crypto.createHash("sha256");
-  hash.update(`${tokenData.name}:${tokenData.date}`);
-  return hash.digest("hex").substring(0, 16);
-}
-
-// API functions
 export const newSessionFunction = new Function<[string, RequestContext], NewSessionResponse>(
   arch,
   "new-session",
@@ -82,39 +74,42 @@ export const newSessionFunction = new Function<[string, RequestContext], NewSess
       throw new Error("Invalid token");
     }
 
-    const sid = tokenToSid(tokenData);
     const uid = generateId();
 
     // Store host record
-    await hostStore.store(sid, { sid, uid });
+    await hostStore.store(token, { token, uid });
 
     // Initialize session state
-    await sessionStore.store(sid, { sid, page: "0", state: "init" });
+    await sessionStore.store(token, { token, page: "0", state: "init" });
 
-    // Set session cookie
-    ctx.setCookie("sid", sid, { httpOnly: true, sameSite: "lax" });
-    ctx.setCookie("uid", uid, { httpOnly: true, sameSite: "lax" });
+    // Set session cookies
     ctx.setCookie("token", token, { httpOnly: true, sameSite: "lax" });
+    ctx.setCookie("uid", uid, { httpOnly: true, sameSite: "lax" });
 
-    return { sid, uid };
+    return { token, uid };
   }
 );
 
-export const loginFunction = new Function<[RequestContext], LoginResponse>(
+export const loginFunction = new Function<[string, RequestContext], LoginResponse>(
   arch,
   "login",
-  async (ctx: RequestContext): Promise<LoginResponse> => {
-    const sid = ctx.cookies["sid"];
+  async (token: string, ctx: RequestContext): Promise<LoginResponse> => {
+    const tokenData = verifyToken(token, ctx.env.PUBLIC_KEY);
+    if (!tokenData) {
+      throw new Error("Invalid token");
+    }
+
     const existingUid = ctx.cookies["uid"];
 
     // Reuse existing uid if present, otherwise generate new one
     const uid = existingUid || generateId();
 
-    if (sid && !existingUid) {
+    if (!existingUid) {
       // Store user record for this session (only for new users)
-      await userStore.store(sid, { sid, uid });
+      await userStore.store(token, { token, uid });
       // Set user cookie
       ctx.setCookie("uid", uid, { httpOnly: true, sameSite: "lax" });
+      ctx.setCookie("token", token, { httpOnly: true, sameSite: "lax" });
     }
 
     return { uid };
@@ -139,17 +134,15 @@ export const reactFunction = new Function<
       throw new Error("Invalid token");
     }
 
-    const sid = tokenToSid(tokenData);
-
     const reactionDoc: Reaction = {
       time: Date.now(),
-      sid,
+      token,
       uid,
       page,
       reaction,
     };
 
-    await reactionStore.store(sid, reactionDoc);
+    await reactionStore.store(token, reactionDoc);
     return { success: true };
   }
 );
@@ -171,10 +164,8 @@ export const setStateFunction = new Function<
       throw new Error("Invalid token");
     }
 
-    const sid = tokenToSid(tokenData);
-
     // Verify caller is the host
-    const hosts = await hostStore.get(sid);
+    const hosts = await hostStore.get(token);
     const hostUid = ctx.cookies["uid"];
     const isHost = hosts.some((h) => h.uid === hostUid);
 
@@ -182,8 +173,8 @@ export const setStateFunction = new Function<
       throw new Error("Not authorized: only host can set state");
     }
 
-    const sessionDoc: Session = { sid, page, state };
-    await sessionStore.store(sid, sessionDoc);
+    const sessionDoc: Session = { token, page, state };
+    await sessionStore.store(token, sessionDoc);
 
     // Note: WebSocket broadcast is handled by the infrastructure layer
     // The ws-server listens for state changes and broadcasts to connected clients
@@ -195,8 +186,13 @@ export const setStateFunction = new Function<
 export const getStateFunction = new Function<[string, RequestContext], Session | null>(
   arch,
   "get-state",
-  async (sid: string, _ctx: RequestContext): Promise<Session | null> => {
-    const sessions = await sessionStore.get(sid);
+  async (token: string, ctx: RequestContext): Promise<Session | null> => {
+    const tokenData = verifyToken(token, ctx.env.PUBLIC_KEY);
+    if (!tokenData) {
+      throw new Error("Invalid token");
+    }
+
+    const sessions = await sessionStore.get(token);
     return sessions.length > 0 ? sessions[0] : null;
   }
 );
@@ -205,7 +201,7 @@ export const getStateFunction = new Function<[string, RequestContext], Session |
 export const api = new ApiContainer(arch, "api");
 
 api.addRoute("newSession", "POST /api/v1/session/new/{token}", newSessionFunction);
-api.addRoute("login", "POST /api/v1/login", loginFunction);
+api.addRoute("login", "POST /api/v1/session/{token}/login", loginFunction);
 api.addRoute(
   "react",
   "POST /api/v1/session/{token}/user/{uid}/react/{page}/{reaction}",
@@ -216,7 +212,7 @@ api.addRoute(
   "POST /api/v1/session/{token}/state/{page}/{state}",
   setStateFunction
 );
-api.addRoute("getState", "GET /api/v1/session/{sid}/state", getStateFunction);
+api.addRoute("getState", "GET /api/v1/session/{token}/state", getStateFunction);
 
 // Datastore API container (internal)
 export const datastoreApi = new ApiContainer(arch, "datastore-api");
@@ -252,7 +248,7 @@ export const userPipe = ws.addRoute(
 );
 
 // Export utility functions for use by other packages
-export { verifyToken, tokenToSid };
+export { verifyToken };
 
 // Synthesize and output architecture definition
 if (require.main === module) {

@@ -10,7 +10,7 @@ export interface SessionToken {
  * Session state stored in the backend
  */
 export interface Session {
-  sid: string;
+  token: string;
   page: string;
   state: string;
 }
@@ -19,7 +19,7 @@ export interface Session {
  * Host entry linking session to host user
  */
 export interface Host {
-  sid: string;
+  token: string;
   uid: string;
 }
 
@@ -27,7 +27,7 @@ export interface Host {
  * User entry linking session to user
  */
 export interface User {
-  sid: string;
+  token: string;
   uid: string;
 }
 
@@ -36,7 +36,7 @@ export interface User {
  */
 export interface Reaction {
   time: number;
-  sid: string;
+  token: string;
   uid: string;
   page: string;
   reaction: string;
@@ -46,7 +46,7 @@ export interface Reaction {
  * Response from session creation
  */
 export interface NewSessionResponse {
-  sid: string;
+  token: string;
   uid: string;
 }
 
@@ -62,7 +62,7 @@ export interface LoginResponse {
  */
 export interface StateChangeMessage {
   type: "state_change";
-  sid: string;
+  token: string;
   page: string;
   state: string;
 }

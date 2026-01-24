@@ -35,7 +35,7 @@ async function initDb(): Promise<void> {
         CREATE TABLE IF NOT EXISTS documents (
           id SERIAL PRIMARY KEY,
           store VARCHAR(255) NOT NULL,
-          key VARCHAR(255) NOT NULL,
+          key TEXT NOT NULL,
           data JSONB NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )

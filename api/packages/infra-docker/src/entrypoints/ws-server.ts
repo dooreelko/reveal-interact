@@ -13,7 +13,7 @@ const PORT = parseInt(process.env.PORT || "3002");
 interface Connection {
   ws: WebSocket;
   type: "host" | "user";
-  sid: string;
+  token: string;
   uid: string;
 }
 
@@ -21,23 +21,23 @@ interface Connection {
 const connections = new Map<string, Connection[]>();
 
 function addConnection(conn: Connection): void {
-  const existing = connections.get(conn.sid) || [];
+  const existing = connections.get(conn.token) || [];
   existing.push(conn);
-  connections.set(conn.sid, existing);
+  connections.set(conn.token, existing);
 }
 
 function removeConnection(conn: Connection): void {
-  const existing = connections.get(conn.sid) || [];
+  const existing = connections.get(conn.token) || [];
   const filtered = existing.filter((c) => c.ws !== conn.ws);
   if (filtered.length > 0) {
-    connections.set(conn.sid, filtered);
+    connections.set(conn.token, filtered);
   } else {
-    connections.delete(conn.sid);
+    connections.delete(conn.token);
   }
 }
 
-function broadcastToSession(sid: string, message: StateChangeMessage): void {
-  const conns = connections.get(sid) || [];
+function broadcastToSession(token: string, message: StateChangeMessage): void {
+  const conns = connections.get(token) || [];
   const data = JSON.stringify(message);
   for (const conn of conns) {
     if (conn.type === "user" && conn.ws.readyState === WebSocket.OPEN) {
@@ -48,45 +48,45 @@ function broadcastToSession(sid: string, message: StateChangeMessage): void {
 
 // Implement WebSocket handlers - using type assertions for generic Function types
 hostPipe.onConnect.overload((async (...args: unknown[]) => {
-  const [sid, uid] = args as [string, string];
-  console.log(`Host connected: sid=${sid}, uid=${uid}`);
+  const [token, uid] = args as [string, string];
+  console.log(`Host connected: token=${token}, uid=${uid}`);
   return { success: true };
 }) as never);
 
 hostPipe.onMessage.overload((async (...args: unknown[]) => {
-  const [sid, uid, data] = args as [string, string, unknown];
-  console.log(`Host message: sid=${sid}, uid=${uid}`, data);
+  const [token, uid, data] = args as [string, string, unknown];
+  console.log(`Host message: token=${token}, uid=${uid}`, data);
   // Host can broadcast state changes
   if (typeof data === "object" && data !== null && "type" in data) {
     const msg = data as StateChangeMessage;
     if (msg.type === "state_change") {
-      broadcastToSession(sid, msg);
+      broadcastToSession(token, msg);
     }
   }
   return { success: true };
 }) as never);
 
 hostPipe.onDisconnect.overload((async (...args: unknown[]) => {
-  const [sid, uid] = args as [string, string];
-  console.log(`Host disconnected: sid=${sid}, uid=${uid}`);
+  const [token, uid] = args as [string, string];
+  console.log(`Host disconnected: token=${token}, uid=${uid}`);
   return { success: true };
 }) as never);
 
 userPipe.onConnect.overload((async (...args: unknown[]) => {
-  const [sid, uid] = args as [string, string];
-  console.log(`User connected: sid=${sid}, uid=${uid}`);
+  const [token, uid] = args as [string, string];
+  console.log(`User connected: token=${token}, uid=${uid}`);
   return { success: true };
 }) as never);
 
 userPipe.onMessage.overload((async (...args: unknown[]) => {
-  const [sid, uid, data] = args as [string, string, unknown];
-  console.log(`User message: sid=${sid}, uid=${uid}`, data);
+  const [token, uid, data] = args as [string, string, unknown];
+  console.log(`User message: token=${token}, uid=${uid}`, data);
   return { success: true };
 }) as never);
 
 userPipe.onDisconnect.overload((async (...args: unknown[]) => {
-  const [sid, uid] = args as [string, string];
-  console.log(`User disconnected: sid=${sid}, uid=${uid}`);
+  const [token, uid] = args as [string, string];
+  console.log(`User disconnected: token=${token}, uid=${uid}`);
   return { success: true };
 }) as never);
 
@@ -131,19 +131,18 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
   }
 
   const { type, token, uid } = parsed;
-  const sid = token; // Simplified: using token as sid
 
-  const conn: Connection = { ws: socket, type, sid, uid };
+  const conn: Connection = { ws: socket, type, token, uid };
   addConnection(conn);
 
   // Call connect handler
   const pipe = type === "host" ? hostPipe : userPipe;
-  pipe.onConnect.invoke(sid, uid).catch(console.error);
+  pipe.onConnect.invoke(token, uid).catch(console.error);
 
   socket.on("message", (data) => {
     try {
       const message = JSON.parse(data.toString());
-      pipe.onMessage.invoke(sid, uid, message).catch(console.error);
+      pipe.onMessage.invoke(token, uid, message).catch(console.error);
     } catch (err) {
       console.error("Failed to parse message:", err);
     }
@@ -151,7 +150,7 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
 
   socket.on("close", () => {
     removeConnection(conn);
-    pipe.onDisconnect.invoke(sid, uid).catch(console.error);
+    pipe.onDisconnect.invoke(token, uid).catch(console.error);
   });
 
   socket.on("error", (err) => {
