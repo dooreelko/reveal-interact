@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RevealInteract Demo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css">
+  <style>
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+    .qr-container img {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    .status {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.8);
+      color: #0f0;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+      z-index: 1000;
+    }
+    .status.error {
+      color: #f00;
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <section>
+        <h1>RevealInteract Demo</h1>
+        <p>A minimal example of the reveal-interact plugin</p>
+      </section>
+
+      <section>
+        <h2>Join the Session</h2>
+        <div class="qr-container">
+          <img id="qr-code" alt="QR Code" style="display: none;">
+          <p id="web-url"></p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Slide 3</h2>
+        <p>Navigate through slides to send state updates</p>
+      </section>
+
+      <section>
+        <section>
+          <h2>Vertical Slide 4.0</h2>
+          <p>This is a vertical stack</p>
+        </section>
+        <section>
+          <h2>Vertical Slide 4.1</h2>
+          <p>Second vertical slide</p>
+        </section>
+      </section>
+
+      <section>
+        <h2>The End</h2>
+        <p>Check the API for recorded state changes</p>
+      </section>
+    </div>
+  </div>
+
+  <div id="status" class="status">Initializing...</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="../dist/reveal-interact.js"></script>
+  <script>
+    // Configuration from URL params or defaults
+    const params = new URLSearchParams(window.location.search);
+    const hostToken = params.get('token') || '';
+    const apiUrl = params.get('apiUrl') || 'http://localhost:3000';
+    const webUiUrl = params.get('webUiUrl') || 'http://localhost:8080/join';
+
+    const statusEl = document.getElementById('status');
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.className = isError ? 'status error' : 'status';
+      console.log(isError ? 'ERROR:' : 'STATUS:', message);
+    }
+
+    if (!hostToken) {
+      setStatus('No token provided. Add ?token=YOUR_HOST_TOKEN to URL', true);
+    } else {
+      Reveal.initialize({
+        hash: true,
+        plugins: [RevealInteract()],
+        revealInteract: {
+          hostToken: hostToken,
+          webUiUrl: webUiUrl,
+          apiUrl: apiUrl
+        }
+      }).then(async () => {
+        const plugin = Reveal.getPlugin('revealInteract');
+
+        if (plugin && plugin.isInitialized()) {
+          setStatus('Plugin initialized successfully');
+
+          // Generate and display QR code
+          const url = plugin.getWebUiUrl();
+          if (url) {
+            try {
+              const qrDataUrl = await plugin.generateQRCode(url);
+              const qrImg = document.getElementById('qr-code');
+              qrImg.src = qrDataUrl;
+              qrImg.style.display = 'block';
+              document.getElementById('web-url').textContent = url;
+            } catch (err) {
+              console.error('Failed to generate QR code:', err);
+            }
+          }
+        } else {
+          setStatus('Plugin failed to initialize - check console', true);
+        }
+      }).catch(err => {
+        setStatus('Reveal.js initialization failed: ' + err.message, true);
+      });
+
+      // Track slide changes in status
+      Reveal.on('slidechanged', event => {
+        setStatus(`Slide: ${event.indexh}.${event.indexv}`);
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "@revint/plugin",
+  "version": "0.1.0",
+  "description": "Reveal.js plugin for reveal-interact",
+  "main": "dist/reveal-interact.js",
+  "module": "dist/reveal-interact.esm.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "npm run build:esm && npm run build:umd",
+    "build:esm": "esbuild src/index.ts --bundle --format=esm --outfile=dist/reveal-interact.esm.js --external:reveal.js",
+    "build:umd": "esbuild src/index.ts --bundle --format=iife --global-name=RevealInteract --outfile=dist/reveal-interact.js --external:reveal.js",
+    "typecheck": "tsc --noEmit",
+    "example": "node example/serve.js",
+    "test:e2e": "./scripts/e2e-test.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/qrcode": "^1.5.6",
+    "esbuild": "^0.20.0",
+    "reveal.js": "^5.0.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.3"
+  },
+  "peerDependencies": {
+    "reveal.js": "^5.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}
