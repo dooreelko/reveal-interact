@@ -8,7 +8,7 @@
   "scripts": {
     "build": "npm run build:esm && npm run build:umd",
     "build:esm": "esbuild src/index.ts --bundle --format=esm --outfile=dist/reveal-interact.esm.js --external:reveal.js",
-    "build:umd": "esbuild src/index.ts --bundle --format=iife --global-name=RevealInteract --outfile=dist/reveal-interact.js --external:reveal.js",
+    "build:umd": "esbuild src/index.ts --bundle --format=iife --global-name=RevealInteract --outfile=dist/reveal-interact.js --external:reveal.js --footer:js=\"RevealInteract=RevealInteract.default\"",
     "typecheck": "tsc --noEmit",
     "example": "node example/serve.js",
     "test:e2e": "./scripts/e2e-test.sh"

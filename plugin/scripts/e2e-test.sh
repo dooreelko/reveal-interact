@@ -59,7 +59,7 @@ npm run build
 
 # Generate host token
 echo "Generating host token..."
-HOST_TOKEN=$("$ROOT_DIR/scripts/generate-host-token.sh" "E2E Test Session" "$(date -I)")
+HOST_TOKEN=$("$ROOT_DIR/scripts/generate-token.sh" "E2E Test Session" "$(date -I) true")
 echo "Token generated: ${HOST_TOKEN:0:50}..."
 
 # Start example server in background
