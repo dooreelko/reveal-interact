@@ -5,6 +5,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$SCRIPT_DIR/.."
 E2E_DIR="$INFRA_DIR/../e2e-tests"
+PROJECT_ROOT="$INFRA_DIR/../../.."
+
+# Load keys (exports PUBLIC_KEY)
+source "$PROJECT_ROOT/scripts/setup-keys.sh"
 
 # Function to cleanup on exit
 cleanup() {

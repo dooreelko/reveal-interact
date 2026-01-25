@@ -5,22 +5,6 @@ import { Image } from "@cdktf/provider-docker/lib/image";
 import { Container } from "@cdktf/provider-docker/lib/container";
 import { Network } from "@cdktf/provider-docker/lib/network";
 import * as path from "path";
-import * as fs from "fs";
-
-function loadPublicKey(): string | undefined {
-  // Try loading from .env file first
-  const envFile = path.resolve(__dirname, "../.env");
-  if (fs.existsSync(envFile)) {
-    const content = fs.readFileSync(envFile, "utf-8");
-    const match = content.match(/PUBLIC_KEY="([^"]+)"/);
-    if (match) {
-      // Convert pipe-delimited back to newlines
-      return match[1].replace(/\|/g, "\n");
-    }
-  }
-  // Fall back to environment variable
-  return process.env.PUBLIC_KEY;
-}
 
 // Common PostgreSQL environment variables
 const postgresEnv = [
@@ -35,9 +19,9 @@ export class LocalDockerStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
 
-    const publicKey = loadPublicKey();
+    const publicKey = process.env.PUBLIC_KEY;
     if (!publicKey) {
-      console.warn("Warning: PUBLIC_KEY not found. Run scripts/create-session.sh first.");
+      console.warn("Warning: PUBLIC_KEY not set. Source scripts/setup-keys.sh first.");
     }
 
     // Configure Docker provider (supports podman)

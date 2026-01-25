@@ -5,18 +5,25 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "build:worker": "npm run build && node scripts/bundle.js",
     "clean": "rm -rf dist",
     "synth": "cdktf synth",
-    "deploy": "cdktf deploy",
-    "destroy": "cdktf destroy"
+    "deploy": "npm run build:worker && CLOUDFLARE_API_TOKEN=$(npx --yes wrangler auth token --json | jq -r .token) cdktf deploy --auto-approve",
+    "destroy": "cdktf destroy --auto-approve",
+    "test:e2e": "./scripts/e2e-test.sh"
   },
   "dependencies": {
-    "@cdktf/provider-cloudflare": "^11.0.0",
+    "@arinoto/cdk-arch": "^0.2.1",
+    "@cdktf/provider-cloudflare": "^13.9.1",
+    "@revint/arch": "*",
     "cdktf": "^0.20.0",
     "constructs": "^10.3.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "@types/node": "^20.0.0",
     "cdktf-cli": "^0.20.0",
+    "esbuild": "^0.20.0",
     "typescript": "^5.3.0"
   }
 }
