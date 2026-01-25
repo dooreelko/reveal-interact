@@ -136,16 +136,22 @@ npm run example
 
 ### E2E Testing
 ```bash
-# First start the API (in api/packages/infra-docker)
-npm run deploy
-
-# Then run e2e tests (in plugin)
+cd plugin
 npm run test:e2e
 ```
 
-The e2e test script:
-1. Builds the plugin
-2. Generates a host token
-3. Starts the example server
-4. Tests API connectivity and session creation
-5. Verifies plugin JavaScript loads correctly
+The e2e test script is self-contained:
+1. Sets up keys (sources setup-keys.sh)
+2. Deploys Docker infrastructure with PUBLIC_KEY
+3. Builds the plugin
+4. Generates a host token
+5. Starts the example server
+6. Tests API connectivity, session creation, state changes
+7. Verifies plugin JavaScript and example page load
+8. Cleans up infrastructure on exit
+
+## Related Fixes
+
+### Cookie Path (infra-docker)
+- Fixed `docker-api-server.ts` to set `Path=/` by default for cookies
+- Without this, cookies were scoped to the request path and not sent with subsequent requests

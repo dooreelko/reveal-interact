@@ -67,9 +67,8 @@ export class DockerApiServer {
         if (options?.sameSite) {
           cookieParts.push(`SameSite=${options.sameSite}`);
         }
-        if (options?.path) {
-          cookieParts.push(`Path=${options.path}`);
-        }
+        // Default path to "/" so cookies are sent with all requests
+        cookieParts.push(`Path=${options?.path ?? "/"}`);
 
         res.append("Set-Cookie", cookieParts.join("; "));
       },

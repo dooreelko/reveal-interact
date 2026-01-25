@@ -1,9 +1,11 @@
 #!/bin/bash
 # E2E test script for the RevealInteract plugin
 #
-# Prerequisites:
-#   - Docker API running on localhost:3000 (run `npm run deploy` in api/packages/infra-docker)
-#   - Keys set up (source scripts/setup-keys.sh)
+# This script:
+#   1. Sets up keys
+#   2. Deploys the Docker infrastructure
+#   3. Runs plugin tests
+#   4. Cleans up infrastructure
 #
 # Usage:
 #   ./scripts/e2e-test.sh
@@ -13,8 +15,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 ROOT_DIR="$(dirname "$PLUGIN_DIR")"
+INFRA_DIR="$ROOT_DIR/api/packages/infra-docker"
 
-# Source keys setup
+# Source keys setup (exports PUBLIC_KEY)
 source "$ROOT_DIR/scripts/setup-keys.sh"
 
 # Configuration
@@ -22,12 +25,34 @@ API_URL="${API_URL:-http://localhost:3000}"
 EXAMPLE_PORT="${EXAMPLE_PORT:-8080}"
 WEB_UI_URL="http://localhost:$EXAMPLE_PORT/join"
 
+SERVER_PID=""
+
+# Cleanup function
+cleanup() {
+  echo ""
+  echo "Cleaning up..."
+  if [ -n "$SERVER_PID" ]; then
+    kill $SERVER_PID 2>/dev/null || true
+  fi
+  echo "Destroying infrastructure..."
+  cd "$INFRA_DIR" && npm run destroy 2>/dev/null || true
+}
+trap cleanup EXIT
+
 echo "=== RevealInteract Plugin E2E Test ==="
 echo "API URL: $API_URL"
 echo "Example Port: $EXAMPLE_PORT"
 echo ""
 
+# Deploy infrastructure
+echo "Deploying Docker infrastructure..."
+cd "$INFRA_DIR" && npm run deploy
+
+echo "Waiting for containers to be ready..."
+sleep 10
+
 # Build the plugin
+echo ""
 echo "Building plugin..."
 cd "$PLUGIN_DIR"
 npm run build
@@ -41,16 +66,6 @@ echo "Token generated: ${HOST_TOKEN:0:50}..."
 echo "Starting example server..."
 node example/serve.js $EXAMPLE_PORT &
 SERVER_PID=$!
-
-# Cleanup function
-cleanup() {
-  echo ""
-  echo "Cleaning up..."
-  if [ -n "$SERVER_PID" ]; then
-    kill $SERVER_PID 2>/dev/null || true
-  fi
-}
-trap cleanup EXIT
 
 # Wait for server to start
 sleep 2
@@ -119,7 +134,6 @@ echo "Test 6: Verify example page loads..."
 EXAMPLE_URL="http://localhost:$EXAMPLE_PORT/?token=$(echo -n "$HOST_TOKEN" | jq -sRr @uri)&apiUrl=$API_URL&webUiUrl=$WEB_UI_URL"
 if curl -s "$EXAMPLE_URL" | grep -q "RevealInteract Demo"; then
   echo "  PASS: Example page loads correctly"
-  echo "  URL: $EXAMPLE_URL"
 else
   echo "  FAIL: Example page not loading correctly"
   exit 1
@@ -127,6 +141,3 @@ fi
 
 echo ""
 echo "=== All tests passed ==="
-echo ""
-echo "To manually test in browser, open:"
-echo "$EXAMPLE_URL"
