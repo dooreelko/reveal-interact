@@ -46,8 +46,9 @@
       <section>
         <h2>Join the Session</h2>
         <div class="qr-container">
-          <img id="qr-code" alt="QR Code" style="display: none;">
-          <p id="web-url"></p>
+          <a id="web-url" href="">
+            <img id="qr-code" alt="QR Code" style="display: none;">
+          </a>
         </div>
       </section>
 
@@ -111,14 +112,15 @@
           setStatus('Plugin initialized successfully');
 
           // Generate and display QR code
-          const url = plugin.getWebUiUrl();
+          const url = `${webUiUrl}?token=${hostToken}&apiUrl=${apiUrl}`
+          //plugin.getWebUiUrl();
           if (url) {
             try {
               const qrDataUrl = await plugin.generateQRCode(url);
               const qrImg = document.getElementById('qr-code');
               qrImg.src = qrDataUrl;
               qrImg.style.display = 'block';
-              document.getElementById('web-url').textContent = url;
+              document.getElementById('web-url').href = url;
             } catch (err) {
               console.error('Failed to generate QR code:', err);
             }

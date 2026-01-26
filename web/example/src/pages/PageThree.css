@@ -1,0 +1,39 @@
+.page-three {
+  text-align: center;
+  padding: 2rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.page-three h2 {
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.page-three > p {
+  margin-bottom: 2rem;
+  color: #666;
+  font-size: 1.1rem;
+}
+
+.static-content {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: left;
+}
+
+.static-content p {
+  margin-bottom: 1rem;
+  color: #555;
+}
+
+.static-content ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.static-content li {
+  margin-bottom: 0.5rem;
+  color: #555;
+}

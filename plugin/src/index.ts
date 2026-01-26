@@ -185,7 +185,7 @@ export default function RevealInteract(): {
         // Hook into slide changes
         deck.on("slidechanged", onSlideChanged as (event: unknown) => void);
 
-        console.log("RevealInteract: Initialized successfully");
+        console.log("RevealInteract: Initialized successfully", {session});
       } catch (err) {
         console.error("RevealInteract: Failed to initialize", err);
       }

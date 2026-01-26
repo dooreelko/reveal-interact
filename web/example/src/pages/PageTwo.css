@@ -1,0 +1,30 @@
+.page-two {
+  text-align: center;
+  padding: 2rem;
+}
+
+.page-two h2 {
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.page-two p {
+  margin-bottom: 1.5rem;
+  color: #666;
+}
+
+.chart-container {
+  display: flex;
+  justify-content: center;
+  margin: 2rem auto;
+  max-width: 500px;
+}
+
+.chart-container svg {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.no-votes {
+  font-style: italic;
+  color: #999;
+}
