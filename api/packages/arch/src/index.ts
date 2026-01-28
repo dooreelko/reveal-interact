@@ -23,6 +23,7 @@ export {
   reactFunction,
   setStateFunction,
   getStateFunction,
+  getSessionFunction,
   hostPipe,
   userPipe,
   verifyToken,

@@ -13,6 +13,14 @@ export interface Session {
   token: string;
   page: string;
   state: string;
+  /** Public session identifier for QR codes (not the host token) */
+  uid: string;
+  /** API base URL for this session */
+  apiUrl: string;
+  /** Web UI URL for audience */
+  webUiUrl: string;
+  /** WebSocket base URL (optional, clients derive from apiUrl if not set) */
+  wsUrl?: string;
 }
 
 /**
@@ -43,11 +51,40 @@ export interface Reaction {
 }
 
 /**
+ * Request body for session creation
+ */
+export interface CreateSessionRequest {
+  /** Web UI URL for audience */
+  webUiUrl: string;
+  /** API base URL */
+  apiUrl: string;
+  /** WebSocket base URL (optional) */
+  wsUrl?: string;
+}
+
+/**
  * Response from session creation
  */
 export interface NewSessionResponse {
   token: string;
-  uid: string;
+  /** Host user ID */
+  hostUid: string;
+  /** Public session ID for QR codes */
+  sessionUid: string;
+}
+
+/**
+ * Response from public session lookup
+ */
+export interface GetSessionResponse {
+  /** Session token (needed for login and other API calls) */
+  token: string;
+  /** API base URL */
+  apiUrl: string;
+  /** Web UI URL */
+  webUiUrl: string;
+  /** WebSocket base URL (optional) */
+  wsUrl?: string;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   RevintClient,
-  getTokenFromUrl,
+  createClientFromUrlAuto,
   type StateChangeEvent,
 } from "@revint/lib";
 import "./App.css";
@@ -24,51 +24,46 @@ function App() {
 
   // Initialize client on mount
   useEffect(() => {
-    const token = getTokenFromUrl("token");
-    const apiUrl = getTokenFromUrl("apiUrl");
+    let revintClient: RevintClient | null = null;
+    let unsubscribeState: (() => void) | null = null;
+    let unsubscribeConnection: (() => void) | null = null;
 
-    if (!token || !apiUrl) {
-      setError(
-        'Missing URL parameters. Expected: ?token=<session-token>&apiUrl=<api-url>'
-      );
-      return;
-    }
+    const initClient = async () => {
+      try {
+        // Auto-detect URL format (session UID or legacy token+apiUrl)
+        revintClient = await createClientFromUrlAuto();
+        setClient(revintClient);
 
-    const revintClient = new RevintClient({ token, apiUrl });
-    setClient(revintClient);
-
-    // Login and connect
-    revintClient
-      .login()
-      .then(() => {
+        // Login and connect
+        await revintClient.login();
         revintClient.connect();
-        return revintClient.getState();
-      })
-      .then((state) => {
+        const state = await revintClient.getState();
         if (state) {
           setCurrentState(state);
         }
-      })
-      .catch((err) => {
-        setError(`Failed to initialize: ${err.message}`);
-      });
 
-    // Listen for state changes
-    const unsubscribeState = revintClient.onStateChange((event) => {
-      setCurrentState(event);
-    });
+        // Listen for state changes
+        unsubscribeState = revintClient.onStateChange((event) => {
+          setCurrentState(event);
+        });
 
-    // Listen for connection changes
-    const unsubscribeConnection = revintClient.onConnectionChange(
-      (isConnected) => {
-        setConnected(isConnected);
+        // Listen for connection changes
+        unsubscribeConnection = revintClient.onConnectionChange(
+          (isConnected) => {
+            setConnected(isConnected);
+          }
+        );
+      } catch (err) {
+        setError(`Failed to initialize: ${err instanceof Error ? err.message : String(err)}`);
       }
-    );
+    };
+
+    initClient();
 
     return () => {
-      unsubscribeState();
-      unsubscribeConnection();
-      revintClient.disconnect();
+      unsubscribeState?.();
+      unsubscribeConnection?.();
+      revintClient?.disconnect();
     };
   }, []);
 

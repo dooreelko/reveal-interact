@@ -11,6 +11,8 @@ import {
   LoginResponse,
   RequestContext,
   SessionToken,
+  CreateSessionRequest,
+  GetSessionResponse,
 } from "./types";
 
 // Create the architecture
@@ -63,41 +65,79 @@ function verifyToken(token: string, publicKey: string | undefined): SessionToken
 }
 
 /**
+ * Extract and verify token from x-session-token header.
+ */
+function getVerifiedToken(ctx: RequestContext): string {
+  const token = ctx.headers["x-session-token"];
+  if (!token) {
+    throw new Error("Missing x-session-token header");
+  }
+  const tokenData = verifyToken(token, ctx.env.PUBLIC_KEY);
+  if (!tokenData) {
+    throw new Error("Invalid token");
+  }
+  return token;
+}
+
+/**
+ * Look up session by sessionUid and verify the header token matches.
+ */
+async function getVerifiedSession(sessionUid: string, ctx: RequestContext): Promise<{ token: string; session: Session }> {
+  const token = getVerifiedToken(ctx);
+  const sessions = await sessionStore.get(sessionUid);
+  if (sessions.length === 0) {
+    throw new Error("Session not found");
+  }
+  const session = sessions[0];
+  if (session.token !== token) {
+    throw new Error("Token does not match session");
+  }
+  return { token, session };
+}
+
+/**
  * API functions
  */
-export const newSessionFunction = new Function<[string, RequestContext], NewSessionResponse>(
+export const newSessionFunction = new Function<[CreateSessionRequest, RequestContext], NewSessionResponse>(
   arch,
   "new-session",
-  async (token: string, ctx: RequestContext): Promise<NewSessionResponse> => {
-    const tokenData = verifyToken(token, ctx.env.PUBLIC_KEY);
-    if (!tokenData) {
-      throw new Error("Invalid token");
-    }
+  async (body: CreateSessionRequest, ctx: RequestContext): Promise<NewSessionResponse> => {
+    const token = getVerifiedToken(ctx);
 
-    const uid = generateId();
+    const hostUid = generateId();
+    const sessionUid = generateId();
 
     // Store host record
-    await hostStore.store(token, { token, uid });
+    await hostStore.store(token, { token, uid: hostUid });
 
-    // Initialize session state
-    await sessionStore.store(token, { token, page: "0", state: "init" });
+    // Initialize session state with metadata
+    const sessionData: Session = {
+      token,
+      page: "0",
+      state: "init",
+      uid: sessionUid,
+      apiUrl: body.apiUrl,
+      webUiUrl: body.webUiUrl,
+      wsUrl: body.wsUrl,
+    };
+    await sessionStore.store(token, sessionData);
+
+    // Also store by session uid for lookup
+    await sessionStore.store(sessionUid, sessionData);
 
     // Set session cookies
     ctx.setCookie("token", token, { httpOnly: true, sameSite: "lax" });
-    ctx.setCookie("uid", uid, { httpOnly: true, sameSite: "lax" });
+    ctx.setCookie("uid", hostUid, { httpOnly: true, sameSite: "lax" });
 
-    return { token, uid };
+    return { token, hostUid, sessionUid };
   }
 );
 
 export const loginFunction = new Function<[string, RequestContext], LoginResponse>(
   arch,
   "login",
-  async (token: string, ctx: RequestContext): Promise<LoginResponse> => {
-    const tokenData = verifyToken(token, ctx.env.PUBLIC_KEY);
-    if (!tokenData) {
-      throw new Error("Invalid token");
-    }
+  async (sessionUid: string, ctx: RequestContext): Promise<LoginResponse> => {
+    const { token } = await getVerifiedSession(sessionUid, ctx);
 
     const existingUid = ctx.cookies["uid"];
 
@@ -123,15 +163,25 @@ export const reactFunction = new Function<
   arch,
   "react",
   async (
-    token: string,
+    sessionUid: string,
     uid: string,
     page: string,
     reaction: string,
     ctx: RequestContext
   ): Promise<{ success: boolean }> => {
-    const tokenData = verifyToken(token, ctx.env.PUBLIC_KEY);
-    if (!tokenData) {
-      throw new Error("Invalid token");
+    const { token } = await getVerifiedSession(sessionUid, ctx);
+
+    // Verify user uid matches the cookie
+    const cookieUid = ctx.cookies["uid"];
+    if (!cookieUid || cookieUid !== uid) {
+      throw new Error("Not authorized: user id mismatch");
+    }
+
+    // Verify user is registered for this session
+    const users = await userStore.get(token);
+    const isUser = users.some((u) => u.uid === uid);
+    if (!isUser) {
+      throw new Error("Not authorized: user not registered for this session");
     }
 
     const reactionDoc: Reaction = {
@@ -154,15 +204,12 @@ export const setStateFunction = new Function<
   arch,
   "set-state",
   async (
-    token: string,
+    sessionUid: string,
     page: string,
     state: string,
     ctx: RequestContext
   ): Promise<{ success: boolean }> => {
-    const tokenData = verifyToken(token, ctx.env.PUBLIC_KEY);
-    if (!tokenData) {
-      throw new Error("Invalid token");
-    }
+    const { token, session: existing } = await getVerifiedSession(sessionUid, ctx);
 
     // Verify caller is the host
     const hosts = await hostStore.get(token);
@@ -173,11 +220,19 @@ export const setStateFunction = new Function<
       throw new Error("Not authorized: only host can set state");
     }
 
-    const sessionDoc: Session = { token, page, state };
-    await sessionStore.store(token, sessionDoc);
+    const sessionDoc: Session = {
+      token,
+      page,
+      state,
+      uid: existing.uid,
+      apiUrl: existing.apiUrl,
+      webUiUrl: existing.webUiUrl,
+      wsUrl: existing.wsUrl,
+    };
 
-    // Note: WebSocket broadcast is handled by the infrastructure layer
-    // The ws-server listens for state changes and broadcasts to connected clients
+    // Update both by token and by session uid
+    await sessionStore.store(token, sessionDoc);
+    await sessionStore.store(existing.uid, sessionDoc);
 
     return { success: true };
   }
@@ -186,24 +241,58 @@ export const setStateFunction = new Function<
 export const getStateFunction = new Function<[string, RequestContext], Session | null>(
   arch,
   "get-state",
-  async (token: string, ctx: RequestContext): Promise<Session | null> => {
-    const tokenData = verifyToken(token, ctx.env.PUBLIC_KEY);
-    if (!tokenData) {
-      throw new Error("Invalid token");
+  async (sessionUid: string, ctx: RequestContext): Promise<Session | null> => {
+    const { token, session } = await getVerifiedSession(sessionUid, ctx);
+
+    // Verify user is logged in for this session
+    const userUid = ctx.cookies["uid"];
+    if (!userUid) {
+      throw new Error("Not authorized: must be logged in");
     }
 
-    const sessions = await sessionStore.get(token);
-    return sessions.length > 0 ? sessions[0] : null;
+    const users = await userStore.get(token);
+    const hosts = await hostStore.get(token);
+    const isUser = users.some((u) => u.uid === userUid);
+    const isHost = hosts.some((h) => h.uid === userUid);
+
+    if (!isUser && !isHost) {
+      throw new Error("Not authorized: user not registered for this session");
+    }
+
+    return session;
+  }
+);
+
+/**
+ * Public session lookup by session uid (no auth required)
+ */
+export const getSessionFunction = new Function<[string, RequestContext], GetSessionResponse | null>(
+  arch,
+  "get-session",
+  async (sessionUid: string, _ctx: RequestContext): Promise<GetSessionResponse | null> => {
+    const sessions = await sessionStore.get(sessionUid);
+    if (sessions.length === 0) {
+      return null;
+    }
+
+    const session = sessions[0];
+    return {
+      token: session.token,
+      apiUrl: session.apiUrl,
+      webUiUrl: session.webUiUrl,
+      wsUrl: session.wsUrl,
+    };
   }
 );
 
 // REST API container
 export const api = new ApiContainer(arch, "api", {
-  newSession: { path: "POST /api/v1/session/new/{token}", handler: newSessionFunction },
-  login: { path: "POST /api/v1/session/{token}/login", handler: loginFunction },
-  react: { path: "POST /api/v1/session/{token}/user/{uid}/react/{page}/{reaction}", handler: reactFunction },
-  setState: { path: "POST /api/v1/session/{token}/state/{page}/{state}", handler: setStateFunction },
-  getState: { path: "GET /api/v1/session/{token}/state", handler: getStateFunction },
+  newSession: { path: "POST /api/v1/session/new", handler: newSessionFunction },
+  getSession: { path: "GET /api/v1/session/{sessionUid}", handler: getSessionFunction },
+  login: { path: "POST /api/v1/session/{sessionUid}/login", handler: loginFunction },
+  react: { path: "POST /api/v1/session/{sessionUid}/user/{uid}/react/{page}/{reaction}", handler: reactFunction },
+  setState: { path: "POST /api/v1/session/{sessionUid}/state/{page}/{state}", handler: setStateFunction },
+  getState: { path: "GET /api/v1/session/{sessionUid}/state", handler: getStateFunction },
 });
 
 // Individual datastore API containers
@@ -233,8 +322,8 @@ export const reactionStoreApi = new ApiContainer(arch, "reaction-store-api", {
 
 // WebSocket container
 export const ws = new WsContainer(arch, "ws", {
-  hostPipe: { path: "/ws/v1/session/{token}/host/{uid}/pipe" },
-  userPipe: { path: "/ws/v1/session/{token}/user/{uid}/pipe" },
+  hostPipe: { path: "/ws/v1/session/{sessionUid}/host/{uid}/pipe" },
+  userPipe: { path: "/ws/v1/session/{sessionUid}/user/{uid}/pipe" },
 });
 
 export const hostPipe = ws.getRoute("hostPipe");

@@ -11,8 +11,12 @@
 export interface RevintClientConfig {
   /** The API base URL (e.g., https://api.example.com) */
   apiUrl: string;
-  /** The session token from the URL */
+  /** The session token (for authentication via x-session-token header) */
   token: string;
+  /** The public session UID (used in API paths) */
+  sessionUid: string;
+  /** The WebSocket base URL (e.g., ws://api.example.com:3002). If not provided, derived from apiUrl */
+  wsUrl?: string;
   /** Enable auto-reconnection for WebSocket (default: true) */
   autoReconnect?: boolean;
   /** Reconnection delay in ms (default: 1000) */
@@ -64,10 +68,15 @@ interface WsMessage {
 }
 
 /**
+ * Internal config type with required fields
+ */
+type InternalConfig = Required<Omit<RevintClientConfig, 'wsUrl'>> & Pick<RevintClientConfig, 'wsUrl'>;
+
+/**
  * RevintClient - Main client for audience interaction
  */
 export class RevintClient {
-  private config: Required<RevintClientConfig>;
+  private config: InternalConfig;
   private uid: string | null = null;
   private ws: WebSocket | null = null;
   private stateCallbacks: Set<StateChangeCallback> = new Set();
@@ -91,10 +100,13 @@ export class RevintClient {
    */
   async login(): Promise<string> {
     const response = await fetch(
-      `${this.config.apiUrl}/api/v1/session/${encodeURIComponent(this.config.token)}/login`,
+      `${this.config.apiUrl}/api/v1/session/${encodeURIComponent(this.config.sessionUid)}/login`,
       {
         method: "POST",
         credentials: "include",
+        headers: {
+          "x-session-token": this.config.token,
+        },
       }
     );
 
@@ -134,12 +146,11 @@ export class RevintClient {
   private createWebSocket(): void {
     if (!this.uid) return;
 
-    // Convert http(s) to ws(s)
-    const wsUrl = this.config.apiUrl
-      .replace(/^http:/, "ws:")
-      .replace(/^https:/, "wss:");
+    // Use configured wsUrl or derive from apiUrl
+    const wsBaseUrl = this.config.wsUrl ||
+      this.config.apiUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
 
-    const url = `${wsUrl}/ws/v1/session/${encodeURIComponent(this.config.token)}/user/${encodeURIComponent(this.uid)}/pipe`;
+    const url = `${wsBaseUrl}/ws/v1/session/${encodeURIComponent(this.config.sessionUid)}/user/${encodeURIComponent(this.uid)}/pipe`;
 
     this.ws = new WebSocket(url);
 
@@ -260,10 +271,13 @@ export class RevintClient {
     }
 
     const response = await fetch(
-      `${this.config.apiUrl}/api/v1/session/${encodeURIComponent(this.config.token)}/user/${encodeURIComponent(this.uid)}/react/${encodeURIComponent(page)}/${encodeURIComponent(reaction)}`,
+      `${this.config.apiUrl}/api/v1/session/${encodeURIComponent(this.config.sessionUid)}/user/${encodeURIComponent(this.uid)}/react/${encodeURIComponent(page)}/${encodeURIComponent(reaction)}`,
       {
         method: "POST",
         credentials: "include",
+        headers: {
+          "x-session-token": this.config.token,
+        },
       }
     );
 
@@ -277,10 +291,13 @@ export class RevintClient {
    */
   async getState(): Promise<StateChangeEvent | null> {
     const response = await fetch(
-      `${this.config.apiUrl}/api/v1/session/${encodeURIComponent(this.config.token)}/state`,
+      `${this.config.apiUrl}/api/v1/session/${encodeURIComponent(this.config.sessionUid)}/state`,
       {
         method: "GET",
         credentials: "include",
+        headers: {
+          "x-session-token": this.config.token,
+        },
       }
     );
 
@@ -321,31 +338,75 @@ export class RevintClient {
 }
 
 /**
- * Extract token from URL query parameter
- * @param paramName The query parameter name (default: "token")
+ * Response from public session lookup
  */
-export function getTokenFromUrl(paramName = "token"): string | null {
-  const params = new URLSearchParams(window.location.search);
-  return params.get(paramName);
+export interface SessionInfo {
+  token: string;
+  apiUrl: string;
+  webUiUrl: string;
+  wsUrl?: string;
+}
+
+/**
+ * Fetch session info from a public session UID
+ * @param sessionUid The public session identifier
+ * @param apiUrl Optional API URL (if not provided, uses relative path)
+ */
+export async function getSessionInfo(sessionUid: string, apiUrl?: string): Promise<SessionInfo> {
+  const baseUrl = apiUrl || "";
+  const response = await fetch(
+    `${baseUrl}/api/v1/session/${encodeURIComponent(sessionUid)}`,
+    {
+      method: "GET",
+      credentials: "include",
+    }
+  );
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error("Session not found");
+    }
+    throw new Error(`Failed to get session: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Create a RevintClient from a session UID
+ * Fetches session info from the API, then creates client with token and apiUrl
+ * @param sessionUid The public session identifier
+ * @param apiUrl Optional API URL for the initial lookup (if not provided, uses relative path)
+ */
+export async function createClientFromSession(
+  sessionUid: string,
+  apiUrl?: string
+): Promise<RevintClient> {
+  const sessionInfo = await getSessionInfo(sessionUid, apiUrl);
+  return new RevintClient({
+    token: sessionInfo.token,
+    apiUrl: sessionInfo.apiUrl,
+    wsUrl: sessionInfo.wsUrl,
+    sessionUid,
+  });
 }
 
 /**
  * Create a RevintClient from URL parameters
- * Expects 'token' and 'apiUrl' query parameters
+ * Expected: ?session=<sessionUid> (optionally with &apiUrl=<apiUrl> for initial lookup)
  */
-export function createClientFromUrl(): RevintClient {
-  const token = getTokenFromUrl("token");
-  const apiUrl = getTokenFromUrl("apiUrl");
+export async function createClientFromUrlAuto(): Promise<RevintClient> {
+  const params = new URLSearchParams(window.location.search);
+  const sessionUid = params.get("session");
+  const apiUrl = params.get("apiUrl");
 
-  if (!token) {
-    throw new Error("Missing 'token' query parameter");
+  if (!sessionUid) {
+    throw new Error(
+      "Missing URL parameters. Expected: ?session=<sessionUid>"
+    );
   }
 
-  if (!apiUrl) {
-    throw new Error("Missing 'apiUrl' query parameter");
-  }
-
-  return new RevintClient({ token, apiUrl });
+  return createClientFromSession(sessionUid, apiUrl || undefined);
 }
 
 // Default export for convenience

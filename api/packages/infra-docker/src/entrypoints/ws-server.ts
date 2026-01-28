@@ -13,31 +13,31 @@ const PORT = parseInt(process.env.PORT || "3002");
 interface Connection {
   ws: WebSocket;
   type: "host" | "user";
-  token: string;
+  sessionUid: string;
   uid: string;
 }
 
-// Connection registry by session
+// Connection registry by session uid
 const connections = new Map<string, Connection[]>();
 
 function addConnection(conn: Connection): void {
-  const existing = connections.get(conn.token) || [];
+  const existing = connections.get(conn.sessionUid) || [];
   existing.push(conn);
-  connections.set(conn.token, existing);
+  connections.set(conn.sessionUid, existing);
 }
 
 function removeConnection(conn: Connection): void {
-  const existing = connections.get(conn.token) || [];
+  const existing = connections.get(conn.sessionUid) || [];
   const filtered = existing.filter((c) => c.ws !== conn.ws);
   if (filtered.length > 0) {
-    connections.set(conn.token, filtered);
+    connections.set(conn.sessionUid, filtered);
   } else {
-    connections.delete(conn.token);
+    connections.delete(conn.sessionUid);
   }
 }
 
-function broadcastToSession(token: string, message: StateChangeMessage): void {
-  const conns = connections.get(token) || [];
+function broadcastToSession(sessionUid: string, message: StateChangeMessage): void {
+  const conns = connections.get(sessionUid) || [];
   const data = JSON.stringify(message);
   for (const conn of conns) {
     if (conn.type === "user" && conn.ws.readyState === WebSocket.OPEN) {
@@ -48,66 +48,66 @@ function broadcastToSession(token: string, message: StateChangeMessage): void {
 
 // Implement WebSocket handlers - using type assertions for generic Function types
 hostPipe.onConnect.overload((async (...args: unknown[]) => {
-  const [token, uid] = args as [string, string];
-  console.log(`Host connected: token=${token}, uid=${uid}`);
+  const [sessionUid, uid] = args as [string, string];
+  console.log(`Host connected: sessionUid=${sessionUid}, uid=${uid}`);
   return { success: true };
 }) as never);
 
 hostPipe.onMessage.overload((async (...args: unknown[]) => {
-  const [token, uid, data] = args as [string, string, unknown];
-  console.log(`Host message: token=${token}, uid=${uid}`, data);
+  const [sessionUid, uid, data] = args as [string, string, unknown];
+  console.log(`Host message: sessionUid=${sessionUid}, uid=${uid}`, data);
   // Host can broadcast state changes
   if (typeof data === "object" && data !== null && "type" in data) {
     const msg = data as StateChangeMessage;
     if (msg.type === "state_change") {
-      broadcastToSession(token, msg);
+      broadcastToSession(sessionUid, msg);
     }
   }
   return { success: true };
 }) as never);
 
 hostPipe.onDisconnect.overload((async (...args: unknown[]) => {
-  const [token, uid] = args as [string, string];
-  console.log(`Host disconnected: token=${token}, uid=${uid}`);
+  const [sessionUid, uid] = args as [string, string];
+  console.log(`Host disconnected: sessionUid=${sessionUid}, uid=${uid}`);
   return { success: true };
 }) as never);
 
 userPipe.onConnect.overload((async (...args: unknown[]) => {
-  const [token, uid] = args as [string, string];
-  console.log(`User connected: token=${token}, uid=${uid}`);
+  const [sessionUid, uid] = args as [string, string];
+  console.log(`User connected: sessionUid=${sessionUid}, uid=${uid}`);
   return { success: true };
 }) as never);
 
 userPipe.onMessage.overload((async (...args: unknown[]) => {
-  const [token, uid, data] = args as [string, string, unknown];
-  console.log(`User message: token=${token}, uid=${uid}`, data);
+  const [sessionUid, uid, data] = args as [string, string, unknown];
+  console.log(`User message: sessionUid=${sessionUid}, uid=${uid}`, data);
   return { success: true };
 }) as never);
 
 userPipe.onDisconnect.overload((async (...args: unknown[]) => {
-  const [token, uid] = args as [string, string];
-  console.log(`User disconnected: token=${token}, uid=${uid}`);
+  const [sessionUid, uid] = args as [string, string];
+  console.log(`User disconnected: sessionUid=${sessionUid}, uid=${uid}`);
   return { success: true };
 }) as never);
 
 // Parse WebSocket path
 function parsePath(
   pathname: string
-): { type: "host" | "user"; token: string; uid: string } | null {
-  // /ws/v1/session/{token}/host/{uid}/pipe
-  // /ws/v1/session/{token}/user/{uid}/pipe
+): { type: "host" | "user"; sessionUid: string; uid: string } | null {
+  // /ws/v1/session/{sessionUid}/host/{uid}/pipe
+  // /ws/v1/session/{sessionUid}/user/{uid}/pipe
   const hostMatch = pathname.match(
     /^\/ws\/v1\/session\/([^/]+)\/host\/([^/]+)\/pipe$/
   );
   if (hostMatch) {
-    return { type: "host", token: hostMatch[1], uid: hostMatch[2] };
+    return { type: "host", sessionUid: hostMatch[1], uid: hostMatch[2] };
   }
 
   const userMatch = pathname.match(
     /^\/ws\/v1\/session\/([^/]+)\/user\/([^/]+)\/pipe$/
   );
   if (userMatch) {
-    return { type: "user", token: userMatch[1], uid: userMatch[2] };
+    return { type: "user", sessionUid: userMatch[1], uid: userMatch[2] };
   }
 
   return null;
@@ -130,19 +130,19 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
     return;
   }
 
-  const { type, token, uid } = parsed;
+  const { type, sessionUid, uid } = parsed;
 
-  const conn: Connection = { ws: socket, type, token, uid };
+  const conn: Connection = { ws: socket, type, sessionUid, uid };
   addConnection(conn);
 
   // Call connect handler
   const pipe = type === "host" ? hostPipe : userPipe;
-  pipe.onConnect.invoke(token, uid).catch(console.error);
+  pipe.onConnect.invoke(sessionUid, uid).catch(console.error);
 
   socket.on("message", (data) => {
     try {
       const message = JSON.parse(data.toString());
-      pipe.onMessage.invoke(token, uid, message).catch(console.error);
+      pipe.onMessage.invoke(sessionUid, uid, message).catch(console.error);
     } catch (err) {
       console.error("Failed to parse message:", err);
     }
@@ -150,7 +150,7 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
 
   socket.on("close", () => {
     removeConnection(conn);
-    pipe.onDisconnect.invoke(token, uid).catch(console.error);
+    pipe.onDisconnect.invoke(sessionUid, uid).catch(console.error);
   });
 
   socket.on("error", (err) => {

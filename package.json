@@ -1,0 +1,13 @@
+{
+  "name": "@revint/root",
+  "private": true,
+  "workspaces": [
+    "api/packages/*",
+    "plugin",
+    "web/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present"
+  }
+}

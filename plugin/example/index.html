@@ -84,9 +84,18 @@
     const params = new URLSearchParams(window.location.search);
     const hostToken = params.get('token') || '';
     const apiUrl = params.get('apiUrl') || 'http://localhost:3000';
-    const webUiUrl = params.get('webUiUrl') || 'http://localhost:8080/join';
+    const wsUrl = params.get('wsUrl') || 'ws://localhost:3002';
+    const webUiUrl = params.get('webUiUrl') || 'http://localhost:5173';
 
     const statusEl = document.getElementById('status');
+    let connectionStatus = 'disconnected';
+    let currentSlide = '0.0';
+
+    function updateStatus() {
+      const connIcon = connectionStatus === 'connected' ? '🟢' : '🔴';
+      statusEl.textContent = `${connIcon} Slide: ${currentSlide}`;
+      statusEl.className = connectionStatus === 'connected' ? 'status' : 'status error';
+    }
 
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
@@ -103,24 +112,33 @@
         revealInteract: {
           hostToken: hostToken,
           webUiUrl: webUiUrl,
-          apiUrl: apiUrl
+          apiUrl: apiUrl,
+          wsUrl: wsUrl
         }
       }).then(async () => {
         const plugin = Reveal.getPlugin('revealInteract');
 
         if (plugin && plugin.isInitialized()) {
-          setStatus('Plugin initialized successfully');
+          // Listen for connection status changes
+          plugin.onConnectionChange((connected) => {
+            connectionStatus = connected ? 'connected' : 'disconnected';
+            updateStatus();
+          });
 
-          // Generate and display QR code
-          const url = `${webUiUrl}?token=${hostToken}&apiUrl=${apiUrl}`
-          //plugin.getWebUiUrl();
-          if (url) {
+          // Set initial status
+          connectionStatus = plugin.isConnected() ? 'connected' : 'disconnected';
+          updateStatus();
+
+          // Generate and display QR code using the new session UID format
+          const qrUrl = plugin.getQRCodeUrl();
+          if (qrUrl) {
             try {
-              const qrDataUrl = await plugin.generateQRCode(url);
+              const qrDataUrl = await plugin.generateQRCode(qrUrl);
               const qrImg = document.getElementById('qr-code');
               qrImg.src = qrDataUrl;
               qrImg.style.display = 'block';
-              document.getElementById('web-url').href = url;
+              document.getElementById('web-url').href = qrUrl;
+              console.log('QR URL:', qrUrl);
             } catch (err) {
               console.error('Failed to generate QR code:', err);
             }
@@ -134,7 +152,8 @@
 
       // Track slide changes in status
       Reveal.on('slidechanged', event => {
-        setStatus(`Slide: ${event.indexh}.${event.indexv}`);
+        currentSlide = `${event.indexh}.${event.indexv}`;
+        updateStatus();
       });
     }
   </script>
