@@ -21,14 +21,15 @@ export CLOUDFLARE_API_TOKEN=$(npx --yes wrangler auth token --json 2>/dev/null |
 # Function to cleanup on exit
 cleanup() {
     echo "Destroying infrastructure..."
-    cd "$INFRA_DIR" && cdktf destroy --auto-approve
+    DESTROY_LOG=$(mktemp)
+    cd "$INFRA_DIR" && cdktf destroy --auto-approve > "$DESTROY_LOG" || (echo "There were errors destroying." && "$(tail "$DESTROY_LOG")" && echo "See full destroy log at $DESTROY_LOG" )
 }
 
 # Trap exits to ensure cleanup
 trap cleanup EXIT
 
 echo "Deploying infrastructure..."
-cd "$INFRA_DIR" && npm run build:worker && cdktf deploy --auto-approve
+cd "$INFRA_DIR" && npm run build:workers && cdktf deploy --auto-approve
 
 echo "Getting worker URL from terraform output..."
 cd "$INFRA_DIR/cdktf.out/stacks/cloudflare"

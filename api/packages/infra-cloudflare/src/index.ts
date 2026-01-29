@@ -1,1 +1,1 @@
-export { CloudflareStack } from "./stack";
+export { CloudflareStack } from "./stack.js";

@@ -7,6 +7,7 @@ import { generateToken } from './utils';
 
 let baseUrl: string;
 let currentToken: string;
+let sessionUid: string;
 let hostUid: string;
 let userUid: string;
 let lastResponse: { status: number; data: any };
@@ -45,11 +46,28 @@ async function performFetch(url: string, options: RequestInit = {}) {
 }
 
 When('I create a new session with the token', async () => {
-  const url = `${baseUrl}/api/v1/session/new/${encodeURIComponent(currentToken)}`;
-  lastResponse = await performFetch(url, { method: 'POST' });
+  const url = `${baseUrl}/api/v1/session/new`;
+  lastResponse = await performFetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-session-token': currentToken,
+    },
+    body: JSON.stringify({
+      apiUrl: baseUrl,
+      webUiUrl: 'https://example.com/ui',
+    }),
+  });
   if (lastResponse.status === 200) {
-    hostUid = lastResponse.data.uid;
+    hostUid = lastResponse.data.hostUid;
+    sessionUid = lastResponse.data.sessionUid;
   }
+});
+
+Then('the response should contain {string}, {string}, and {string}', (field1: string, field2: string, field3: string) => {
+  expect(lastResponse.data).toHaveProperty(field1);
+  expect(lastResponse.data).toHaveProperty(field2);
+  expect(lastResponse.data).toHaveProperty(field3);
 });
 
 Then('the response should contain a {string} and {string}', (field1: string, field2: string) => {
@@ -62,15 +80,31 @@ Then('the {string} should match the one I used', (field: string) => {
 });
 
 Given('I have created a session with that token', async () => {
-  const url = `${baseUrl}/api/v1/session/new/${encodeURIComponent(currentToken)}`;
-  lastResponse = await performFetch(url, { method: 'POST' });
+  const url = `${baseUrl}/api/v1/session/new`;
+  lastResponse = await performFetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-session-token': currentToken,
+    },
+    body: JSON.stringify({
+      apiUrl: baseUrl,
+      webUiUrl: 'https://example.com/ui',
+    }),
+  });
   expect(lastResponse.status).toBe(200);
-  hostUid = lastResponse.data.uid;
+  hostUid = lastResponse.data.hostUid;
+  sessionUid = lastResponse.data.sessionUid;
 });
 
 When('I login to the session with the token', async () => {
-  const url = `${baseUrl}/api/v1/session/${encodeURIComponent(currentToken)}/login`;
-  lastResponse = await performFetch(url, { method: 'POST' });
+  const url = `${baseUrl}/api/v1/session/${sessionUid}/login`;
+  lastResponse = await performFetch(url, {
+    method: 'POST',
+    headers: {
+      'x-session-token': currentToken,
+    },
+  });
   if (lastResponse.status === 200) {
     userUid = lastResponse.data.uid;
   }
@@ -81,15 +115,26 @@ Then('the response should contain a {string}', (field: string) => {
 });
 
 Given('I have logged in to the session', async () => {
-  const url = `${baseUrl}/api/v1/session/${encodeURIComponent(currentToken)}/login`;
-  lastResponse = await performFetch(url, { method: 'POST' });
+  const url = `${baseUrl}/api/v1/session/${sessionUid}/login`;
+  lastResponse = await performFetch(url, {
+    method: 'POST',
+    headers: {
+      'x-session-token': currentToken,
+    },
+  });
   expect(lastResponse.status).toBe(200);
   userUid = lastResponse.data.uid;
 });
 
 When('I send a {string} reaction for page {string}', async (reaction: string, page: string) => {
-  const url = `${baseUrl}/api/v1/session/${encodeURIComponent(currentToken)}/user/${userUid}/react/${page}/${reaction}`;
-  lastResponse = await performFetch(url, { method: 'POST' });
+  const url = `${baseUrl}/api/v1/session/${sessionUid}/user/${userUid}/react/${page}/${reaction}`;
+  lastResponse = await performFetch(url, {
+    method: 'POST',
+    headers: {
+      'x-session-token': currentToken,
+      'Cookie': `uid=${userUid}`,
+    },
+  });
 });
 
 Then('the response should indicate success', () => {
@@ -98,19 +143,24 @@ Then('the response should indicate success', () => {
 });
 
 When('I set the state to {string} for page {string}', async (state: string, page: string) => {
-  const url = `${baseUrl}/api/v1/session/${encodeURIComponent(currentToken)}/state/${page}/${state}`;
-  // Send the host uid in a cookie
+  const url = `${baseUrl}/api/v1/session/${sessionUid}/state/${page}/${state}`;
   lastResponse = await performFetch(url, {
     method: 'POST',
     headers: {
-      'Cookie': `uid=${hostUid}`
-    }
+      'x-session-token': currentToken,
+      'Cookie': `uid=${hostUid}`,
+    },
   });
 });
 
 When('I get the session state', async () => {
-  const url = `${baseUrl}/api/v1/session/${encodeURIComponent(currentToken)}/state`;
-  lastResponse = await performFetch(url);
+  const url = `${baseUrl}/api/v1/session/${sessionUid}/state`;
+  lastResponse = await performFetch(url, {
+    headers: {
+      'x-session-token': currentToken,
+      'Cookie': `uid=${hostUid}`,
+    },
+  });
 });
 
 Then('the state should be {string} for page {string}', (state: string, page: string) => {

@@ -9,7 +9,7 @@ Feature: Session Management
   Scenario: Create a new session
     Given I have a valid session token for "Test Presentation"
     When I create a new session with the token
-    Then the response should contain a "token" and "uid"
+    Then the response should contain "token", "hostUid", and "sessionUid"
     And the "token" should match the one I used
 
   Scenario: Login to a session

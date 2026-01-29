@@ -1,11 +1,16 @@
 import { TerraformStack, TerraformOutput } from "cdktf";
 import { Construct } from "constructs";
-import { CloudflareProvider } from "@cdktf/provider-cloudflare/lib/provider";
-import { WorkersKvNamespace } from "@cdktf/provider-cloudflare/lib/workers-kv-namespace";
-import { WorkersScript } from "@cdktf/provider-cloudflare/lib/workers-script";
-import { WorkersScriptSubdomain } from "@cdktf/provider-cloudflare/lib/workers-script-subdomain";
+import { CloudflareProvider } from "@cdktf/provider-cloudflare/lib/provider/index.js";
+import { WorkersKvNamespace } from "@cdktf/provider-cloudflare/lib/workers-kv-namespace/index.js";
+import { Worker } from "@cdktf/provider-cloudflare/lib/worker/index.js";
+import { WorkerVersion } from "@cdktf/provider-cloudflare/lib/worker-version/index.js";
+import { WorkersDeployment } from "@cdktf/provider-cloudflare/lib/workers-deployment/index.js";
 import * as path from "path";
 import * as fs from "fs";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface CloudflareStackConfig {
   accountId: string;
@@ -41,50 +46,225 @@ export class CloudflareStack extends TerraformStack {
       title: "revint-reaction-kv",
     });
 
-    // Read bundled worker script
-    const workerPath = path.resolve(__dirname, "../dist/worker/worker.js");
-    let workerContent = "";
-    if (fs.existsSync(workerPath)) {
-      workerContent = fs.readFileSync(workerPath, "utf-8");
-      // Escape $ as $$ for Terraform (prevents interpolation)
-      workerContent = workerContent.replace(/\$/g, "$$$$");
-    } else {
-      console.warn("Warning: Worker bundle not found. Run 'npm run build:worker' first.");
-      workerContent = "export default { fetch() { return new Response('Not built'); } }";
-    }
+    const distDir = path.resolve(__dirname, "../dist/cloudflare");
 
-    const workerName = "revint-api";
+    // Helper to read bundled worker content
+    const readWorker = (filename: string): string => {
+      const workerPath = path.join(distDir, filename);
+      if (fs.existsSync(workerPath)) {
+        return workerPath;
+      }
+      console.warn(`Warning: Worker bundle ${filename} not found. Run 'npm run build:workers' first.`);
+      return "";
+    };
 
-    // Create the Workers Script
-    const worker = new WorkersScript(this, "api-worker", {
+    // --- Session Store Worker ---
+    const sessionStoreWorker = new Worker(this, "session-store-worker", {
       accountId: config.accountId,
-      scriptName: workerName,
-      content: workerContent,
-      mainModule: "worker.js",
-      compatibilityDate: "2024-01-01",
-
-      // Bindings (KV namespaces and environment variables)
-      bindings: [
-        { type: "kv_namespace", name: "SESSION_KV", namespaceId: sessionKv.id },
-        { type: "kv_namespace", name: "HOST_KV", namespaceId: hostKv.id },
-        { type: "kv_namespace", name: "USER_KV", namespaceId: userKv.id },
-        { type: "kv_namespace", name: "REACTION_KV", namespaceId: reactionKv.id },
-        { type: "plain_text", name: "PUBLIC_KEY", text: config.publicKey },
-      ],
+      name: "revint-session-store",
+      observability: {
+        enabled: true,
+        logs: { enabled: true, invocationLogs: true },
+      },
+      subdomain: { enabled: true },
+      dependsOn: [sessionKv],
     });
 
-    // Enable workers.dev subdomain for the worker
-    new WorkersScriptSubdomain(this, "api-worker-subdomain", {
+    const sessionStoreVersion = new WorkerVersion(this, "session-store-version", {
       accountId: config.accountId,
-      scriptName: workerName,
-      enabled: true,
-      dependsOn: [worker],
+      workerId: sessionStoreWorker.id,
+      mainModule: "index.js",
+      modules: [{
+        name: "index.js",
+        contentFile: readWorker("session-store-worker.js"),
+        contentType: "application/javascript+module",
+      }],
+      bindings: [{
+        type: "kv_namespace",
+        name: "SESSION_KV",
+        namespaceId: sessionKv.id,
+      }],
+      compatibilityDate: "2024-09-23",
+      compatibilityFlags: ["nodejs_compat"],
+    });
+
+    const sessionStoreDeployment = new WorkersDeployment(this, "session-store-deployment", {
+      accountId: config.accountId,
+      scriptName: sessionStoreWorker.name,
+      strategy: "percentage",
+      versions: [{
+        versionId: sessionStoreVersion.id,
+        percentage: 100,
+      }],
+    });
+
+    // --- Host Store Worker ---
+    const hostStoreWorker = new Worker(this, "host-store-worker", {
+      accountId: config.accountId,
+      name: "revint-host-store",
+      observability: {
+        enabled: true,
+        logs: { enabled: true, invocationLogs: true },
+      },
+      subdomain: { enabled: true },
+      dependsOn: [hostKv],
+    });
+
+    const hostStoreVersion = new WorkerVersion(this, "host-store-version", {
+      accountId: config.accountId,
+      workerId: hostStoreWorker.id,
+      mainModule: "index.js",
+      modules: [{
+        name: "index.js",
+        contentFile: readWorker("host-store-worker.js"),
+        contentType: "application/javascript+module",
+      }],
+      bindings: [{
+        type: "kv_namespace",
+        name: "HOST_KV",
+        namespaceId: hostKv.id,
+      }],
+      compatibilityDate: "2024-09-23",
+      compatibilityFlags: ["nodejs_compat"],
+    });
+
+    const hostStoreDeployment = new WorkersDeployment(this, "host-store-deployment", {
+      accountId: config.accountId,
+      scriptName: hostStoreWorker.name,
+      strategy: "percentage",
+      versions: [{
+        versionId: hostStoreVersion.id,
+        percentage: 100,
+      }],
+    });
+
+    // --- User Store Worker ---
+    const userStoreWorker = new Worker(this, "user-store-worker", {
+      accountId: config.accountId,
+      name: "revint-user-store",
+      observability: {
+        enabled: true,
+        logs: { enabled: true, invocationLogs: true },
+      },
+      subdomain: { enabled: true },
+      dependsOn: [userKv],
+    });
+
+    const userStoreVersion = new WorkerVersion(this, "user-store-version", {
+      accountId: config.accountId,
+      workerId: userStoreWorker.id,
+      mainModule: "index.js",
+      modules: [{
+        name: "index.js",
+        contentFile: readWorker("user-store-worker.js"),
+        contentType: "application/javascript+module",
+      }],
+      bindings: [{
+        type: "kv_namespace",
+        name: "USER_KV",
+        namespaceId: userKv.id,
+      }],
+      compatibilityDate: "2024-09-23",
+      compatibilityFlags: ["nodejs_compat"],
+    });
+
+    const userStoreDeployment = new WorkersDeployment(this, "user-store-deployment", {
+      accountId: config.accountId,
+      scriptName: userStoreWorker.name,
+      strategy: "percentage",
+      versions: [{
+        versionId: userStoreVersion.id,
+        percentage: 100,
+      }],
+    });
+
+    // --- Reaction Store Worker ---
+    const reactionStoreWorker = new Worker(this, "reaction-store-worker", {
+      accountId: config.accountId,
+      name: "revint-reaction-store",
+      observability: {
+        enabled: true,
+        logs: { enabled: true, invocationLogs: true },
+      },
+      subdomain: { enabled: true },
+      dependsOn: [reactionKv],
+    });
+
+    const reactionStoreVersion = new WorkerVersion(this, "reaction-store-version", {
+      accountId: config.accountId,
+      workerId: reactionStoreWorker.id,
+      mainModule: "index.js",
+      modules: [{
+        name: "index.js",
+        contentFile: readWorker("reaction-store-worker.js"),
+        contentType: "application/javascript+module",
+      }],
+      bindings: [{
+        type: "kv_namespace",
+        name: "REACTION_KV",
+        namespaceId: reactionKv.id,
+      }],
+      compatibilityDate: "2024-09-23",
+      compatibilityFlags: ["nodejs_compat"],
+    });
+
+    const reactionStoreDeployment = new WorkersDeployment(this, "reaction-store-deployment", {
+      accountId: config.accountId,
+      scriptName: reactionStoreWorker.name,
+      strategy: "percentage",
+      versions: [{
+        versionId: reactionStoreVersion.id,
+        percentage: 100,
+      }],
+    });
+
+    // --- API Worker ---
+    const apiWorker = new Worker(this, "api-worker", {
+      accountId: config.accountId,
+      name: "revint-api",
+      observability: {
+        enabled: true,
+        logs: { enabled: true, headSamplingRate: 1, invocationLogs: true },
+      },
+      subdomain: { enabled: true },
+      dependsOn: [sessionStoreWorker, hostStoreWorker, userStoreWorker, reactionStoreWorker],
+    });
+
+    const apiVersion = new WorkerVersion(this, "api-version", {
+      accountId: config.accountId,
+      workerId: apiWorker.id,
+      mainModule: "index.js",
+      modules: [{
+        name: "index.js",
+        contentFile: readWorker("api-worker.js"),
+        contentType: "application/javascript+module",
+      }],
+      bindings: [
+        { type: "service", name: "SESSION_STORE", service: sessionStoreWorker.name },
+        { type: "service", name: "HOST_STORE", service: hostStoreWorker.name },
+        { type: "service", name: "USER_STORE", service: userStoreWorker.name },
+        { type: "service", name: "REACTION_STORE", service: reactionStoreWorker.name },
+        { type: "plain_text", name: "PUBLIC_KEY", text: config.publicKey },
+      ],
+      compatibilityDate: "2024-09-23",
+      compatibilityFlags: ["nodejs_compat"],
+      dependsOn: [sessionStoreDeployment, hostStoreDeployment, userStoreDeployment, reactionStoreDeployment],
+    });
+
+    new WorkersDeployment(this, "api-deployment", {
+      accountId: config.accountId,
+      scriptName: apiWorker.name,
+      strategy: "percentage",
+      versions: [{
+        versionId: apiVersion.id,
+        percentage: 100,
+      }],
     });
 
     // Outputs
     new TerraformOutput(this, "worker-url", {
-      value: `https://${workerName}.${config.workerSubdomain}.workers.dev`,
-      description: "Worker URL",
+      value: `https://revint-api.${config.workerSubdomain}.workers.dev`,
+      description: "API Worker URL",
     });
 
     new TerraformOutput(this, "session-kv-id", {

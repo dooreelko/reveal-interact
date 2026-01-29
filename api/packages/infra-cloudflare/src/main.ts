@@ -1,5 +1,5 @@
 import { App } from "cdktf";
-import { CloudflareStack } from "./stack";
+import { CloudflareStack } from "./stack.js";
 
 function loadConfig(): { accountId: string; workerSubdomain: string; publicKey: string } {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;

@@ -1,6 +1,6 @@
 {
   "language": "typescript",
-  "app": "npx ts-node src/main.ts",
+  "app": "npx tsx src/main.ts",
   "projectId": "revint-infra-cloudflare",
   "sendCrashReports": "false",
   "terraformProviders": [],

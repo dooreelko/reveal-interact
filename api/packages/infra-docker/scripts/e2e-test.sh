@@ -13,7 +13,8 @@ source "$PROJECT_ROOT/scripts/setup-keys.sh"
 # Function to cleanup on exit
 cleanup() {
     echo "Destroying infrastructure..."
-    cd "$INFRA_DIR" && npm run destroy
+    DESTROY_LOG=$(mktemp)
+    (cd "$INFRA_DIR" && npm run destroy > "$DESTROY_LOG") || (echo "There were errors destroying." && "$(tail "$DESTROY_LOG")" && echo "See full destroy log at $DESTROY_LOG" )
 }
 
 # Trap exits to ensure cleanup
