@@ -1,12 +1,12 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import { ApiContainer } from "@arinoto/cdk-arch";
+import { ApiContainer, ApiRoutes } from "@arinoto/cdk-arch";
 import { RequestContext, CookieOptions, EnvConfig } from "@revint/arch";
 
 /**
  * Creates a Cloudflare Worker fetch handler from an ApiContainer's route definitions.
  */
-export function createWorkerHandler(api: ApiContainer) {
+export function createWorkerHandler<TRoutes extends ApiRoutes>(api: ApiContainer<TRoutes>) {
   const routes = prepareRoutes(api);
 
   return async (request: Request, env: Record<string, unknown>): Promise<Response> => {
@@ -84,7 +84,7 @@ interface PreparedRoute {
   handler: { invoke: (...args: unknown[]) => Promise<unknown> };
 }
 
-function prepareRoutes(api: ApiContainer): PreparedRoute[] {
+function prepareRoutes<TRoutes extends ApiRoutes>(api: ApiContainer<TRoutes>): PreparedRoute[] {
   const routes: PreparedRoute[] = [];
 
   for (const name of api.listRoutes()) {

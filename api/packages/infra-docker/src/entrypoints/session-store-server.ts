@@ -72,8 +72,7 @@ async function main() {
   await initDb();
 
   architectureBinding.bind(sessionStoreApi, {
-    host: "session-store",
-    port: PORT,
+    baseUrl: `session-store:${PORT}`,
     overloads: {
       store,
       get,

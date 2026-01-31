@@ -30,8 +30,7 @@ async function getAll(): Promise<User[]> {
 
 // Bind the store API with KV overloads
 architectureBinding.bind(userStoreApi, {
-  host: "user-store",
-  port: 0,
+  baseUrl: "user-store",
   overloads: {
     store,
     get,

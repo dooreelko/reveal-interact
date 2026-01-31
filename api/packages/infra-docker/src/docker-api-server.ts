@@ -1,4 +1,4 @@
-import { ApiContainer, architectureBinding, ArchitectureBinding } from "@arinoto/cdk-arch";
+import { ApiContainer, ApiRoutes, architectureBinding, ArchitectureBinding } from "@arinoto/cdk-arch";
 import type { Application, Request, Response } from "express";
 import { RequestContext, CookieOptions, EnvConfig } from "@revint/arch";
 
@@ -9,11 +9,11 @@ export interface DockerApiServerConfig {
 /**
  * Creates an Express server from an ApiContainer's route definitions.
  */
-export class DockerApiServer {
-  private api: ApiContainer;
+export class DockerApiServer<TRoutes extends ApiRoutes = ApiRoutes> {
+  private api: ApiContainer<TRoutes>;
   private binding: ArchitectureBinding;
 
-  constructor(api: ApiContainer, config?: DockerApiServerConfig) {
+  constructor(api: ApiContainer<TRoutes>, config?: DockerApiServerConfig) {
     this.api = api;
     this.binding = config?.binding ?? architectureBinding;
   }

@@ -72,8 +72,7 @@ async function main() {
   await initDb();
 
   architectureBinding.bind(reactionStoreApi, {
-    host: "reaction-store",
-    port: PORT,
+    baseUrl: `reaction-store:${PORT}`,
     overloads: {
       store,
       get,

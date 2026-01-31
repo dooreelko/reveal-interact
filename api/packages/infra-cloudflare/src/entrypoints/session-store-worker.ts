@@ -32,8 +32,7 @@ async function getAll(): Promise<Session[]> {
 
 // Bind the store API with KV overloads
 architectureBinding.bind(sessionStoreApi, {
-  host: "session-store",
-  port: 0,
+  baseUrl: "session-store",
   overloads: {
     store,
     get,

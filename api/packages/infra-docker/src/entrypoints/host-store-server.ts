@@ -72,8 +72,7 @@ async function main() {
   await initDb();
 
   architectureBinding.bind(hostStoreApi, {
-    host: "host-store",
-    port: PORT,
+    baseUrl: `host-store:${PORT}`,
     overloads: {
       store,
       get,

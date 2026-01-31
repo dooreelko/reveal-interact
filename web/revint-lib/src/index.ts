@@ -5,6 +5,14 @@
  * Handles authentication, WebSocket connections, and reactions.
  */
 
+import { createHttpBindings, type Fetcher } from "@arinoto/cdk-arch";
+import {
+  api,
+  type GetSessionResponse,
+  type LoginResponse,
+  type Session,
+} from "@revint/arch";
+
 /**
  * Configuration options for RevintClient
  */
@@ -51,13 +59,6 @@ export type StateChangeCallback = (event: StateChangeEvent) => void;
 export type ConnectionCallback = (connected: boolean) => void;
 
 /**
- * Login response from the API
- */
-interface LoginResponse {
-  uid: string;
-}
-
-/**
  * WebSocket message from server
  */
 interface WsMessage {
@@ -70,7 +71,105 @@ interface WsMessage {
 /**
  * Internal config type with required fields
  */
-type InternalConfig = Required<Omit<RevintClientConfig, 'wsUrl'>> & Pick<RevintClientConfig, 'wsUrl'>;
+type InternalConfig = Required<Omit<RevintClientConfig, "wsUrl">> &
+  Pick<RevintClientConfig, "wsUrl">;
+
+/**
+ * API client interface for user operations (without server-side RequestContext)
+ */
+interface UserApiClient {
+  getSession: (sessionUid: string) => Promise<GetSessionResponse | null>;
+  login: (sessionUid: string) => Promise<LoginResponse>;
+  react: (
+    sessionUid: string,
+    uid: string,
+    page: string,
+    reaction: string
+  ) => Promise<{ success: boolean }>;
+  getState: (sessionUid: string) => Promise<Session | null>;
+}
+
+/**
+ * Create an authenticated fetcher that adds credentials and token header
+ */
+function createAuthFetcher(token: string): Fetcher {
+  return () => ({
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await globalThis.fetch(input, {
+        ...init,
+        credentials: "include",
+        headers: {
+          ...init?.headers,
+          "x-session-token": token,
+        },
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(
+          `Request failed: ${response.status} ${response.statusText}${text ? ` - ${text}` : ""}`
+        );
+      }
+
+      return response;
+    },
+  });
+}
+
+/**
+ * Create an unauthenticated fetcher for public endpoints
+ */
+function createPublicFetcher(): Fetcher {
+  return () => ({
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await globalThis.fetch(input, {
+        ...init,
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(
+          `Request failed: ${response.status} ${response.statusText}${text ? ` - ${text}` : ""}`
+        );
+      }
+
+      return response;
+    },
+  });
+}
+
+/**
+ * Create API client for user operations
+ */
+function createUserApiClient(apiUrl: string, token: string): UserApiClient {
+  const endpoint = { baseUrl: apiUrl };
+  const authFetcher = createAuthFetcher(token);
+  const publicFetcher = createPublicFetcher();
+
+  // Create bindings with appropriate fetchers
+  // Note: The generated types include RequestContext, but we cast to our client interface
+  // since RequestContext is constructed server-side and not passed by clients
+  const publicBindings = createHttpBindings(
+    endpoint,
+    api,
+    ["getSession"] as const,
+    publicFetcher
+  );
+  const authBindings = createHttpBindings(
+    endpoint,
+    api,
+    ["login", "react", "getState"] as const,
+    authFetcher
+  );
+
+  return {
+    getSession: publicBindings.getSession,
+    login: authBindings.login,
+    react: authBindings.react,
+    getState: authBindings.getState,
+  } as unknown as UserApiClient;
+}
 
 /**
  * RevintClient - Main client for audience interaction
@@ -84,6 +183,7 @@ export class RevintClient {
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private intentionallyClosed = false;
+  private apiClient: UserApiClient;
 
   constructor(config: RevintClientConfig) {
     this.config = {
@@ -92,6 +192,7 @@ export class RevintClient {
       maxReconnectAttempts: 10,
       ...config,
     };
+    this.apiClient = createUserApiClient(config.apiUrl, config.token);
   }
 
   /**
@@ -99,24 +200,9 @@ export class RevintClient {
    * This must be called before connecting to WebSocket or sending reactions
    */
   async login(): Promise<string> {
-    const response = await fetch(
-      `${this.config.apiUrl}/api/v1/session/${encodeURIComponent(this.config.sessionUid)}/login`,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "x-session-token": this.config.token,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Login failed: ${response.status} ${response.statusText}`);
-    }
-
-    const data: LoginResponse = await response.json();
-    this.uid = data.uid;
-    return data.uid;
+    const result = await this.apiClient.login(this.config.sessionUid);
+    this.uid = result.uid;
+    return result.uid;
   }
 
   /**
@@ -147,7 +233,8 @@ export class RevintClient {
     if (!this.uid) return;
 
     // Use configured wsUrl or derive from apiUrl
-    const wsBaseUrl = this.config.wsUrl ||
+    const wsBaseUrl =
+      this.config.wsUrl ||
       this.config.apiUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
 
     const url = `${wsBaseUrl}/ws/v1/session/${encodeURIComponent(this.config.sessionUid)}/user/${encodeURIComponent(this.uid)}/pipe`;
@@ -192,7 +279,8 @@ export class RevintClient {
       return;
     }
 
-    const delay = this.config.reconnectDelay * Math.pow(2, this.reconnectAttempts);
+    const delay =
+      this.config.reconnectDelay * Math.pow(2, this.reconnectAttempts);
     this.reconnectAttempts++;
 
     this.reconnectTimeout = setTimeout(() => {
@@ -270,48 +358,25 @@ export class RevintClient {
       throw new Error("Must call login() before react()");
     }
 
-    const response = await fetch(
-      `${this.config.apiUrl}/api/v1/session/${encodeURIComponent(this.config.sessionUid)}/user/${encodeURIComponent(this.uid)}/react/${encodeURIComponent(page)}/${encodeURIComponent(reaction)}`,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "x-session-token": this.config.token,
-        },
-      }
+    await this.apiClient.react(
+      this.config.sessionUid,
+      this.uid,
+      page,
+      reaction
     );
-
-    if (!response.ok) {
-      throw new Error(`React failed: ${response.status} ${response.statusText}`);
-    }
   }
 
   /**
    * Get the current session state
    */
   async getState(): Promise<StateChangeEvent | null> {
-    const response = await fetch(
-      `${this.config.apiUrl}/api/v1/session/${encodeURIComponent(this.config.sessionUid)}/state`,
-      {
-        method: "GET",
-        credentials: "include",
-        headers: {
-          "x-session-token": this.config.token,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
-      throw new Error(`Get state failed: ${response.status} ${response.statusText}`);
+    const session = await this.apiClient.getState(this.config.sessionUid);
+    if (!session) {
+      return null;
     }
-
-    const data = await response.json();
     return {
-      page: data.page,
-      state: data.state,
+      page: session.page,
+      state: session.state,
     };
   }
 
@@ -352,24 +417,27 @@ export interface SessionInfo {
  * @param sessionUid The public session identifier
  * @param apiUrl Optional API URL (if not provided, uses relative path)
  */
-export async function getSessionInfo(sessionUid: string, apiUrl?: string): Promise<SessionInfo> {
-  const baseUrl = apiUrl || "";
-  const response = await fetch(
-    `${baseUrl}/api/v1/session/${encodeURIComponent(sessionUid)}`,
-    {
-      method: "GET",
-      credentials: "include",
-    }
+export async function getSessionInfo(
+  sessionUid: string,
+  apiUrl?: string
+): Promise<SessionInfo> {
+  const endpoint = { baseUrl: apiUrl || "" };
+  const publicFetcher = createPublicFetcher();
+
+  const bindings = createHttpBindings(
+    endpoint,
+    api,
+    ["getSession"] as const,
+    publicFetcher
   );
 
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("Session not found");
-    }
-    throw new Error(`Failed to get session: ${response.status} ${response.statusText}`);
+  const result = await (bindings as unknown as Pick<UserApiClient, "getSession">).getSession(sessionUid);
+
+  if (!result) {
+    throw new Error("Session not found");
   }
 
-  return response.json();
+  return result;
 }
 
 /**
@@ -401,9 +469,7 @@ export async function createClientFromUrlAuto(): Promise<RevintClient> {
   const apiUrl = params.get("apiUrl");
 
   if (!sessionUid) {
-    throw new Error(
-      "Missing URL parameters. Expected: ?session=<sessionUid>"
-    );
+    throw new Error("Missing URL parameters. Expected: ?session=<sessionUid>");
   }
 
   return createClientFromSession(sessionUid, apiUrl || undefined);

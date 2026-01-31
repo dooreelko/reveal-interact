@@ -9,7 +9,7 @@ import {
   reactionStoreApi,
 } from "@revint/arch";
 import { createWorkerHandler } from "../cloudflare-worker-handler.js";
-import { serviceBindingHandler, ServiceBinding } from "../service-binding-handler.js";
+import { createServiceBindingHandlers, ServiceBinding } from "../service-binding-handler.js";
 
 interface Env {
   SESSION_STORE: ServiceBinding;
@@ -21,49 +21,45 @@ interface Env {
 
 let currentEnv: Env | null = null;
 
-// Bind store APIs with service binding handlers
+// Bind store APIs with service binding handlers using createHttpBindings
 architectureBinding.bind(sessionStoreApi, {
-  host: "session-store",
-  port: 0,
-  overloads: {
-    store: serviceBindingHandler(() => currentEnv!.SESSION_STORE, sessionStoreApi, "store"),
-    get: serviceBindingHandler(() => currentEnv!.SESSION_STORE, sessionStoreApi, "get"),
-    getAll: serviceBindingHandler(() => currentEnv!.SESSION_STORE, sessionStoreApi, "getAll"),
-  },
+  baseUrl: "session-store",
+  overloads: createServiceBindingHandlers(
+    () => currentEnv!.SESSION_STORE,
+    sessionStoreApi,
+    ["store", "get", "getAll"] as const
+  ),
 });
 
 architectureBinding.bind(hostStoreApi, {
-  host: "host-store",
-  port: 0,
-  overloads: {
-    store: serviceBindingHandler(() => currentEnv!.HOST_STORE, hostStoreApi, "store"),
-    get: serviceBindingHandler(() => currentEnv!.HOST_STORE, hostStoreApi, "get"),
-    getAll: serviceBindingHandler(() => currentEnv!.HOST_STORE, hostStoreApi, "getAll"),
-  },
+  baseUrl: "host-store",
+  overloads: createServiceBindingHandlers(
+    () => currentEnv!.HOST_STORE,
+    hostStoreApi,
+    ["store", "get", "getAll"] as const
+  ),
 });
 
 architectureBinding.bind(userStoreApi, {
-  host: "user-store",
-  port: 0,
-  overloads: {
-    store: serviceBindingHandler(() => currentEnv!.USER_STORE, userStoreApi, "store"),
-    get: serviceBindingHandler(() => currentEnv!.USER_STORE, userStoreApi, "get"),
-    getAll: serviceBindingHandler(() => currentEnv!.USER_STORE, userStoreApi, "getAll"),
-  },
+  baseUrl: "user-store",
+  overloads: createServiceBindingHandlers(
+    () => currentEnv!.USER_STORE,
+    userStoreApi,
+    ["store", "get", "getAll"] as const
+  ),
 });
 
 architectureBinding.bind(reactionStoreApi, {
-  host: "reaction-store",
-  port: 0,
-  overloads: {
-    store: serviceBindingHandler(() => currentEnv!.REACTION_STORE, reactionStoreApi, "store"),
-    get: serviceBindingHandler(() => currentEnv!.REACTION_STORE, reactionStoreApi, "get"),
-    getAll: serviceBindingHandler(() => currentEnv!.REACTION_STORE, reactionStoreApi, "getAll"),
-  },
+  baseUrl: "reaction-store",
+  overloads: createServiceBindingHandlers(
+    () => currentEnv!.REACTION_STORE,
+    reactionStoreApi,
+    ["store", "get", "getAll"] as const
+  ),
 });
 
 // Bind API locally
-architectureBinding.bind(api, { host: "api", port: 0 });
+architectureBinding.bind(api, { baseUrl: "api" });
 
 const handleRequest = createWorkerHandler(api);
 

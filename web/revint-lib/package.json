@@ -22,8 +22,13 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
+    "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
     "esbuild": "^0.20.0",
     "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "@arinoto/cdk-arch": "0.4.0",
+    "@revint/arch": "*"
   },
   "keywords": [
     "reveal",

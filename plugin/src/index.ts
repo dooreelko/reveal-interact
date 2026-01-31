@@ -1,4 +1,6 @@
 import QRCode from "qrcode";
+import { createHttpBindings, type Fetcher } from "@arinoto/cdk-arch";
+import { api, type CreateSessionRequest, type NewSessionResponse } from "@revint/arch";
 
 /**
  * Configuration for RevealInteract plugin
@@ -46,6 +48,54 @@ interface RevealDeck {
 export type ConnectionCallback = (connected: boolean) => void;
 
 /**
+ * API client interface for host operations (without server-side RequestContext)
+ */
+interface HostApiClient {
+  newSession: (body: CreateSessionRequest) => Promise<NewSessionResponse>;
+  setState: (sessionUid: string, page: string, state: string) => Promise<{ success: boolean }>;
+}
+
+/**
+ * Create an authenticated fetcher that adds credentials and token header
+ */
+function createAuthFetcher(token: string): Fetcher {
+  return () => ({
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await globalThis.fetch(input, {
+        ...init,
+        credentials: "include",
+        headers: {
+          ...init?.headers,
+          "x-session-token": token,
+        },
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`Request failed: ${response.status} ${response.statusText}${text ? ` - ${text}` : ""}`);
+      }
+
+      return response;
+    },
+  });
+}
+
+/**
+ * Create API client for host operations
+ */
+function createHostApiClient(apiUrl: string, token: string): HostApiClient {
+  const endpoint = { baseUrl: apiUrl };
+  const fetcher = createAuthFetcher(token);
+
+  // Create bindings with auth fetcher
+  // Note: The generated types include RequestContext, but we cast to our client interface
+  // since RequestContext is constructed server-side and not passed by clients
+  const bindings = createHttpBindings(endpoint, api, ["newSession", "setState"] as const, fetcher);
+
+  return bindings as unknown as HostApiClient;
+}
+
+/**
  * Internal state for the plugin
  */
 interface PluginState {
@@ -58,6 +108,7 @@ interface PluginState {
   reconnectAttempts: number;
   reconnectTimeout: ReturnType<typeof setTimeout> | null;
   intentionallyClosed: boolean;
+  apiClient: HostApiClient | null;
 }
 
 const state: PluginState = {
@@ -70,61 +121,8 @@ const state: PluginState = {
   reconnectAttempts: 0,
   reconnectTimeout: null,
   intentionallyClosed: false,
+  apiClient: null,
 };
-
-/**
- * Create a new session on the API
- */
-async function createSession(
-  apiUrl: string,
-  token: string,
-  webUiUrl: string,
-  wsUrl?: string
-): Promise<{ token: string; hostUid: string; sessionUid: string }> {
-  const body: { apiUrl: string; webUiUrl: string; wsUrl?: string } = {
-    apiUrl,
-    webUiUrl,
-  };
-  if (wsUrl) {
-    body.wsUrl = wsUrl;
-  }
-
-  const response = await fetch(`${apiUrl}/api/v1/session/new`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      "x-session-token": token,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-/**
- * Send state change to the API
- */
-async function setState(apiUrl: string, token: string, sessionUid: string, page: string, stateValue: string): Promise<void> {
-  const response = await fetch(
-    `${apiUrl}/api/v1/session/${encodeURIComponent(sessionUid)}/state/${encodeURIComponent(page)}/${encodeURIComponent(stateValue)}`,
-    {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "x-session-token": token,
-      },
-    }
-  );
-
-  if (!response.ok) {
-    console.error(`Failed to set state: ${response.status} ${response.statusText}`);
-  }
-}
 
 /**
  * Notify all connection callbacks
@@ -244,12 +242,12 @@ function disconnectWebSocket(): void {
  * Handle slide change event
  */
 function onSlideChanged(event: SlideChangedEvent): void {
-  if (!state.config || !state.initialized || !state.sessionUid) {
+  if (!state.config || !state.initialized || !state.sessionUid || !state.apiClient) {
     return;
   }
 
   const page = `${event.indexh}.${event.indexv}`;
-  setState(state.config.apiUrl, state.config.hostToken, state.sessionUid, page, "slide").catch((err) => {
+  state.apiClient.setState(state.sessionUid, page, "slide").catch((err) => {
     console.error("RevealInteract: Failed to send slide change", err);
   });
 }
@@ -368,14 +366,16 @@ export default function RevealInteract(): {
       }
 
       state.config = pluginConfig;
+      state.apiClient = createHostApiClient(pluginConfig.apiUrl, pluginConfig.hostToken);
 
       try {
-        const session = await createSession(
-          pluginConfig.apiUrl,
-          pluginConfig.hostToken,
-          pluginConfig.webUiUrl,
-          pluginConfig.wsUrl
-        );
+        // Create session using typed API client
+        const session = await state.apiClient.newSession({
+          apiUrl: pluginConfig.apiUrl,
+          webUiUrl: pluginConfig.webUiUrl,
+          wsUrl: pluginConfig.wsUrl,
+        });
+
         state.hostUid = session.hostUid;
         state.sessionUid = session.sessionUid;
         state.initialized = true;
@@ -383,10 +383,10 @@ export default function RevealInteract(): {
         // Connect WebSocket for connection status monitoring
         connectWebSocket();
 
-        // Send initial slide state
+        // Send initial slide state using typed API client
         const indices = deck.getIndices();
         const page = `${indices.h}.${indices.v}`;
-        await setState(pluginConfig.apiUrl, pluginConfig.hostToken, session.sessionUid, page, "slide");
+        await state.apiClient.setState(session.sessionUid, page, "slide");
 
         // Hook into slide changes
         deck.on("slidechanged", onSlideChanged as (event: unknown) => void);
@@ -409,6 +409,7 @@ export default function RevealInteract(): {
       state.initialized = false;
       state.connectionCallbacks.clear();
       state.reconnectAttempts = 0;
+      state.apiClient = null;
     },
 
     generateQRCode,

@@ -30,8 +30,7 @@ async function getAll(): Promise<Reaction[]> {
 
 // Bind the store API with KV overloads
 architectureBinding.bind(reactionStoreApi, {
-  host: "reaction-store",
-  port: 0,
+  baseUrl: "reaction-store",
   overloads: {
     store,
     get,

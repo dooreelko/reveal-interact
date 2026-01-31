@@ -8,25 +8,29 @@ async function build() {
     platform: "browser",
     target: ["es2020"],
     sourcemap: true,
+    external: ["reveal.js"],
     plugins: [NodeModulesPolyfillPlugin()],
   };
 
   // ESM bundle
   await esbuild.build({
     ...commonOptions,
-    outfile: "dist/revint-lib.esm.js",
+    outfile: "dist/reveal-interact.esm.js",
     format: "esm",
   });
 
   // IIFE bundle for script tag usage
   await esbuild.build({
     ...commonOptions,
-    outfile: "dist/revint-lib.js",
+    outfile: "dist/reveal-interact.js",
     format: "iife",
-    globalName: "RevintLib",
+    globalName: "RevealInteract",
+    footer: {
+      js: "RevealInteract=RevealInteract.default",
+    },
   });
 
-  console.log("Build complete");
+  console.log("Plugin build complete");
 }
 
 build().catch((err) => {
