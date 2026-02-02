@@ -1,5 +1,5 @@
 import QRCode from "qrcode";
-import { createHttpBindings, type Fetcher } from "@arinoto/cdk-arch";
+import { createHttpBindings, type Fetcher, type RouteHandlers } from "@arinoto/cdk-arch";
 import { api, GetSessionResponse, type CreateSessionRequest, type NewSessionResponse } from "@revint/arch";
 
 /**
@@ -42,12 +42,9 @@ interface RevealDeck {
 export type ConnectionCallback = (connected: boolean) => void;
 
 /**
- * API client interface for host operations (without server-side RequestContext)
+ * Type for host API client - uses createHttpBindings return type directly
  */
-interface HostApiClient {
-  newSession: (body: CreateSessionRequest) => Promise<NewSessionResponse>;
-  setState: (sessionUid: string, page: string, state: string) => Promise<{ success: boolean }>;
-}
+type HostApiClient = Pick<RouteHandlers<typeof api.routes>, "newSession" | "setState">;
 
 /**
  * Create an authenticated fetcher that adds credentials and token header
@@ -81,12 +78,8 @@ function createHostApiClient(apiUrl: string, token: string): HostApiClient {
   const endpoint = { baseUrl: apiUrl };
   const fetcher = createAuthFetcher(token);
 
-  // Create bindings with auth fetcher
-  // Note: The generated types include RequestContext, but we cast to our client interface
-  // since RequestContext is constructed server-side and not passed by clients
-  const bindings = createHttpBindings(endpoint, api, ["newSession", "setState"] as const, fetcher);
-
-  return bindings as unknown as HostApiClient;
+  // Create bindings with auth fetcher - types now match directly (no RequestContext in signatures)
+  return createHttpBindings(endpoint, api, ["newSession", "setState"] as const, fetcher);
 }
 
 /**

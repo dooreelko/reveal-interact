@@ -5,7 +5,7 @@
  * Handles authentication, WebSocket connections, and reactions.
  */
 
-import { createHttpBindings, type Fetcher } from "@arinoto/cdk-arch";
+import { createHttpBindings, type Fetcher, type RouteHandlers } from "@arinoto/cdk-arch";
 import {
   api,
   type GetSessionResponse,
@@ -75,19 +75,9 @@ type InternalConfig = Required<Omit<RevintClientConfig, "wsUrl">> &
   Pick<RevintClientConfig, "wsUrl">;
 
 /**
- * API client interface for user operations (without server-side RequestContext)
+ * Type for user API client - uses createHttpBindings return type directly
  */
-interface UserApiClient {
-  getSession: (sessionUid: string) => Promise<GetSessionResponse | null>;
-  login: (sessionUid: string) => Promise<LoginResponse>;
-  react: (
-    sessionUid: string,
-    uid: string,
-    page: string,
-    reaction: string
-  ) => Promise<{ success: boolean }>;
-  getState: (sessionUid: string) => Promise<Session | null>;
-}
+type UserApiClient = Pick<RouteHandlers<typeof api.routes>, "getSession" | "login" | "react" | "getState">;
 
 /**
  * Create an authenticated fetcher that adds credentials and token header
@@ -147,9 +137,7 @@ function createUserApiClient(apiUrl: string, token: string): UserApiClient {
   const authFetcher = createAuthFetcher(token);
   const publicFetcher = createPublicFetcher();
 
-  // Create bindings with appropriate fetchers
-  // Note: The generated types include RequestContext, but we cast to our client interface
-  // since RequestContext is constructed server-side and not passed by clients
+  // Create bindings with appropriate fetchers - types now match directly (no RequestContext in signatures)
   const publicBindings = createHttpBindings(
     endpoint,
     api,
@@ -168,7 +156,7 @@ function createUserApiClient(apiUrl: string, token: string): UserApiClient {
     login: authBindings.login,
     react: authBindings.react,
     getState: authBindings.getState,
-  } as unknown as UserApiClient;
+  };
 }
 
 /**
@@ -414,6 +402,7 @@ export async function getSessionInfo(
   const endpoint = { baseUrl: apiUrl || "" };
   const publicFetcher = createPublicFetcher();
 
+  // Types match directly - no cast needed
   const bindings = createHttpBindings(
     endpoint,
     api,
@@ -421,7 +410,7 @@ export async function getSessionInfo(
     publicFetcher
   );
 
-  const result = await (bindings as unknown as Pick<UserApiClient, "getSession">).getSession(sessionUid);
+  const result = await bindings.getSession(sessionUid);
 
   if (!result) {
     throw new Error("Session not found");

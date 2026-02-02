@@ -22,7 +22,7 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
-    "@arinoto/cdk-arch": "0.4.0",
+    "@arinoto/cdk-arch": "0.5.0",
     "@revint/arch": "*",
     "qrcode": "^1.5.3"
   },

@@ -1,4 +1,4 @@
-import { Architecture, ApiContainer, Function } from "@arinoto/cdk-arch";
+import { Architecture, ApiContainer, Function, FunctionRuntimeContextMarker } from "@arinoto/cdk-arch";
 import * as crypto from "crypto";
 import { DataStore } from "./data-store";
 import { WsContainer } from "./ws-container";
@@ -23,6 +23,21 @@ export const sessionStore = new DataStore<Session>(arch, "session-store");
 export const hostStore = new DataStore<Host>(arch, "host-store");
 export const userStore = new DataStore<User>(arch, "user-store");
 export const reactionStore = new DataStore<Reaction>(arch, "reaction-store");
+
+// Runtime context type for all API functions
+type ApiRuntimeContext = FunctionRuntimeContextMarker & RequestContext;
+
+/**
+ * Extract typed runtime context from `this` binding.
+ * Must be called from a regular function (not arrow) that was invoked via invokeWithRuntimeContext.
+ */
+function extractContext<T>(that: unknown): T {
+  const ctx = that as { runtimeContext?: boolean };
+  if (!ctx?.runtimeContext) {
+    throw new Error("Missing runtime context - ensure function is invoked via invokeWithRuntimeContext");
+  }
+  return that as T;
+}
 
 // Utility functions
 function generateId(): string {
@@ -114,10 +129,12 @@ async function getVerifiedSessionAsUser(sessionUid: string, ctx: RequestContext)
 /**
  * API functions
  */
-export const newSessionFunction = new Function<[CreateSessionRequest, RequestContext], NewSessionResponse>(
+export const newSessionFunction = new Function<[CreateSessionRequest], NewSessionResponse, ApiRuntimeContext>(
   arch,
   "new-session",
-  async function (body: CreateSessionRequest, ctx: RequestContext): Promise<NewSessionResponse> {
+  async function (body: CreateSessionRequest): Promise<NewSessionResponse> {
+    const ctx = extractContext<RequestContext>(this);
+
     // Verify host token from header
     const token = getVerifiedToken(ctx);
 
@@ -157,10 +174,11 @@ export const newSessionFunction = new Function<[CreateSessionRequest, RequestCon
   }
 );
 
-export const loginFunction = new Function<[string, RequestContext], LoginResponse>(
+export const loginFunction = new Function<[string], LoginResponse, ApiRuntimeContext>(
   arch,
   "login",
-  async (sessionUid: string, ctx: RequestContext): Promise<LoginResponse> => {
+  async function (sessionUid: string): Promise<LoginResponse> {
+    const ctx = extractContext<RequestContext>(this);
     const { userToken, session } = await getVerifiedSessionAsUser(sessionUid, ctx);
 
     const existingUid = ctx.cookies["uid"];
@@ -181,18 +199,19 @@ export const loginFunction = new Function<[string, RequestContext], LoginRespons
 );
 
 export const reactFunction = new Function<
-  [string, string, string, string, RequestContext],
-  { success: boolean }
+  [string, string, string, string],
+  { success: boolean },
+  ApiRuntimeContext
 >(
   arch,
   "react",
-  async (
+  async function (
     sessionUid: string,
     uid: string,
     page: string,
-    reaction: string,
-    ctx: RequestContext
-  ): Promise<{ success: boolean }> => {
+    reaction: string
+  ): Promise<{ success: boolean }> {
+    const ctx = extractContext<RequestContext>(this);
     const { userToken } = await getVerifiedSessionAsUser(sessionUid, ctx);
 
     // Verify user uid matches the cookie
@@ -222,17 +241,18 @@ export const reactFunction = new Function<
 );
 
 export const setStateFunction = new Function<
-  [string, string, string, RequestContext],
-  { success: boolean }
+  [string, string, string],
+  { success: boolean },
+  ApiRuntimeContext
 >(
   arch,
   "set-state",
-  async (
+  async function (
     sessionUid: string,
     page: string,
-    state: string,
-    ctx: RequestContext
-  ): Promise<{ success: boolean }> => {
+    state: string
+  ): Promise<{ success: boolean }> {
+    const ctx = extractContext<RequestContext>(this);
     const { token, session: existing } = await getVerifiedSessionAsHost(sessionUid, ctx);
 
     // Verify caller is the host
@@ -263,10 +283,12 @@ export const setStateFunction = new Function<
   }
 );
 
-export const getStateFunction = new Function<[string, RequestContext], Session | null>(
+export const getStateFunction = new Function<[string], Session | null, ApiRuntimeContext>(
   arch,
   "get-state",
-  async (sessionUid: string, ctx: RequestContext): Promise<Session | null> => {
+  async function (sessionUid: string): Promise<Session | null> {
+    const ctx = extractContext<RequestContext>(this);
+
     // Verify user is logged in
     const userUid = ctx.cookies["uid"];
     if (!userUid) {
@@ -303,10 +325,11 @@ export const getStateFunction = new Function<[string, RequestContext], Session |
  * Public session lookup by session uid (no auth required)
  * Returns userToken for audience members to use for authentication
  */
-export const getSessionFunction = new Function<[string, RequestContext], GetSessionResponse | null>(
+export const getSessionFunction = new Function<[string], GetSessionResponse | null, ApiRuntimeContext>(
   arch,
   "get-session",
-  async (sessionUid: string, _ctx: RequestContext): Promise<GetSessionResponse | null> => {
+  async function (sessionUid: string): Promise<GetSessionResponse | null> {
+    // Note: ctx not used for this public endpoint but available via this
     const sessions = await sessionStore.get(sessionUid);
     if (sessions.length === 0) {
       return null;

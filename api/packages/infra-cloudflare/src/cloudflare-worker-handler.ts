@@ -41,7 +41,7 @@ export function createWorkerHandler<TRoutes extends ApiRoutes>(api: ApiContainer
       try {
         const ctx = createContext(request, env, responseHeaders);
 
-        // Build args: path params, then body if POST/PUT, then context
+        // Build args: path params, then body if POST/PUT (context passed via runtime context)
         const args: unknown[] = [...params];
         if (["POST", "PUT"].includes(method)) {
           try {
@@ -53,9 +53,9 @@ export function createWorkerHandler<TRoutes extends ApiRoutes>(api: ApiContainer
             // No body or invalid JSON, continue without body
           }
         }
-        args.push(ctx);
 
-        const result = await route.handler.invoke(...args);
+        // Pass RequestContext via runtime context (bound to `this` in handler)
+        const result = await route.handler.invokeWithRuntimeContext(args, ctx);
         return new Response(JSON.stringify(result), {
           status: 200,
           headers: responseHeaders,
@@ -81,7 +81,7 @@ interface PreparedRoute {
   method: string;
   pattern: RegExp;
   paramNames: string[];
-  handler: { invoke: (...args: unknown[]) => Promise<unknown> };
+  handler: { invokeWithRuntimeContext: (args: unknown[], ctx: unknown) => Promise<unknown> };
 }
 
 function prepareRoutes<TRoutes extends ApiRoutes>(api: ApiContainer<TRoutes>): PreparedRoute[] {

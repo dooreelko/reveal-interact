@@ -79,7 +79,7 @@ export class DockerApiServer<TRoutes extends ApiRoutes = ApiRoutes> {
     app: Application,
     name: string,
     routePath: string,
-    handler: { invoke: (...args: unknown[]) => Promise<unknown> }
+    handler: { invokeWithRuntimeContext: (args: unknown[], ctx: unknown) => Promise<unknown> }
   ): void {
     const { method, path, paramNames } = this.parseRoute(routePath);
 
@@ -90,11 +90,9 @@ export class DockerApiServer<TRoutes extends ApiRoutes = ApiRoutes> {
           args.push(req.body);
         }
 
-        // Add RequestContext as the last argument
+        // Pass RequestContext via runtime context (bound to `this` in handler)
         const ctx = this.createContext(req, res);
-        args.push(ctx);
-
-        const result = await handler.invoke(...args);
+        const result = await handler.invokeWithRuntimeContext(args, ctx);
         res.json(result);
       } catch (error) {
         console.error(`Error handling ${name}:`, error);
