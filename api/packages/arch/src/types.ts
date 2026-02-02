@@ -10,7 +10,10 @@ export interface SessionToken {
  * Session state stored in the backend
  */
 export interface Session {
+  /** Host token used for authentication */
   token: string;
+  /** User token for audience authentication */
+  userToken: string;
   page: string;
   state: string;
   /** Public session identifier for QR codes (not the host token) */
@@ -54,6 +57,8 @@ export interface Reaction {
  * Request body for session creation
  */
 export interface CreateSessionRequest {
+  /** User token for audience authentication */
+  userToken: string;
   /** Web UI URL for audience */
   webUiUrl: string;
   /** API base URL */
@@ -77,8 +82,8 @@ export interface NewSessionResponse {
  * Response from public session lookup
  */
 export interface GetSessionResponse {
-  /** Session token (needed for login and other API calls) */
-  token: string;
+  /** User token for audience authentication */
+  userToken: string;
   /** API base URL */
   apiUrl: string;
   /** Web UI URL */

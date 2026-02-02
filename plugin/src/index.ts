@@ -1,19 +1,13 @@
 import QRCode from "qrcode";
 import { createHttpBindings, type Fetcher } from "@arinoto/cdk-arch";
-import { api, type CreateSessionRequest, type NewSessionResponse } from "@revint/arch";
+import { api, GetSessionResponse, type CreateSessionRequest, type NewSessionResponse } from "@revint/arch";
 
 /**
  * Configuration for RevealInteract plugin
  */
-export interface RevealInteractConfig {
-  /** The host token (signed payload with name, date, host:true) */
+export interface RevealInteractConfig extends GetSessionResponse {
+  /** The host token (signed payload with name, date) for host authentication */
   hostToken: string;
-  /** The web UI URL that users will visit */
-  webUiUrl: string;
-  /** The API base URL (e.g., https://api.example.com) */
-  apiUrl: string;
-  /** The WebSocket base URL (e.g., ws://api.example.com:3002). If not provided, derived from apiUrl */
-  wsUrl?: string;
   /** Enable auto-reconnection for WebSocket (default: true) */
   autoReconnect?: boolean;
   /** Reconnection delay in ms (default: 1000) */
@@ -360,8 +354,8 @@ export default function RevealInteract(): {
         return;
       }
 
-      if (!pluginConfig.hostToken || !pluginConfig.webUiUrl || !pluginConfig.apiUrl) {
-        console.error("RevealInteract: Missing required configuration (hostToken, webUiUrl, apiUrl)");
+      if (!pluginConfig.hostToken || !pluginConfig.userToken || !pluginConfig.webUiUrl || !pluginConfig.apiUrl) {
+        console.error("RevealInteract: Missing required configuration (hostToken, userToken, webUiUrl, apiUrl)");
         return;
       }
 
@@ -371,6 +365,7 @@ export default function RevealInteract(): {
       try {
         // Create session using typed API client
         const session = await state.apiClient.newSession({
+          userToken: pluginConfig.userToken,
           apiUrl: pluginConfig.apiUrl,
           webUiUrl: pluginConfig.webUiUrl,
           wsUrl: pluginConfig.wsUrl,

@@ -80,9 +80,9 @@ function getVerifiedToken(ctx: RequestContext): string {
 }
 
 /**
- * Look up session by sessionUid and verify the header token matches.
+ * Look up session by sessionUid and verify the header token matches (host token).
  */
-async function getVerifiedSession(sessionUid: string, ctx: RequestContext): Promise<{ token: string; session: Session }> {
+async function getVerifiedSessionAsHost(sessionUid: string, ctx: RequestContext): Promise<{ token: string; session: Session }> {
   const token = getVerifiedToken(ctx);
   const sessions = await sessionStore.get(sessionUid);
   if (sessions.length === 0) {
@@ -96,13 +96,36 @@ async function getVerifiedSession(sessionUid: string, ctx: RequestContext): Prom
 }
 
 /**
+ * Look up session by sessionUid and verify the header token matches (user token).
+ */
+async function getVerifiedSessionAsUser(sessionUid: string, ctx: RequestContext): Promise<{ userToken: string; session: Session }> {
+  const userToken = getVerifiedToken(ctx);
+  const sessions = await sessionStore.get(sessionUid);
+  if (sessions.length === 0) {
+    throw new Error("Session not found");
+  }
+  const session = sessions[0];
+  if (session.userToken !== userToken) {
+    throw new Error("Token does not match session");
+  }
+  return { userToken, session };
+}
+
+/**
  * API functions
  */
 export const newSessionFunction = new Function<[CreateSessionRequest, RequestContext], NewSessionResponse>(
   arch,
   "new-session",
-  async (body: CreateSessionRequest, ctx: RequestContext): Promise<NewSessionResponse> => {
+  async function (body: CreateSessionRequest, ctx: RequestContext): Promise<NewSessionResponse> {
+    // Verify host token from header
     const token = getVerifiedToken(ctx);
+
+    // Verify user token from body
+    const userTokenData = verifyToken(body.userToken, ctx.env.PUBLIC_KEY);
+    if (!userTokenData) {
+      throw new Error("Invalid user token");
+    }
 
     const hostUid = generateId();
     const sessionUid = generateId();
@@ -113,11 +136,12 @@ export const newSessionFunction = new Function<[CreateSessionRequest, RequestCon
     // Initialize session state with metadata
     const sessionData: Session = {
       token,
+      userToken: body.userToken,
       page: "0",
       state: "init",
       uid: sessionUid,
       apiUrl: body.apiUrl,
-      webUiUrl: body.webUiUrl,
+      webUiUrl: `${body.webUiUrl}?apiUrl=${encodeURI(body.apiUrl)}&sessionUid=${sessionUid}`,
       wsUrl: body.wsUrl,
     };
     await sessionStore.store(token, sessionData);
@@ -125,7 +149,7 @@ export const newSessionFunction = new Function<[CreateSessionRequest, RequestCon
     // Also store by session uid for lookup
     await sessionStore.store(sessionUid, sessionData);
 
-    // Set session cookies
+    // Set session cookies for host
     ctx.setCookie("token", token, { httpOnly: true, sameSite: "lax" });
     ctx.setCookie("uid", hostUid, { httpOnly: true, sameSite: "lax" });
 
@@ -137,7 +161,7 @@ export const loginFunction = new Function<[string, RequestContext], LoginRespons
   arch,
   "login",
   async (sessionUid: string, ctx: RequestContext): Promise<LoginResponse> => {
-    const { token } = await getVerifiedSession(sessionUid, ctx);
+    const { userToken, session } = await getVerifiedSessionAsUser(sessionUid, ctx);
 
     const existingUid = ctx.cookies["uid"];
 
@@ -146,10 +170,10 @@ export const loginFunction = new Function<[string, RequestContext], LoginRespons
 
     if (!existingUid) {
       // Store user record for this session (only for new users)
-      await userStore.store(token, { token, uid });
+      await userStore.store(userToken, { token: userToken, uid });
       // Set user cookie
       ctx.setCookie("uid", uid, { httpOnly: true, sameSite: "lax" });
-      ctx.setCookie("token", token, { httpOnly: true, sameSite: "lax" });
+      ctx.setCookie("token", userToken, { httpOnly: true, sameSite: "lax" });
     }
 
     return { uid };
@@ -169,7 +193,7 @@ export const reactFunction = new Function<
     reaction: string,
     ctx: RequestContext
   ): Promise<{ success: boolean }> => {
-    const { token } = await getVerifiedSession(sessionUid, ctx);
+    const { userToken } = await getVerifiedSessionAsUser(sessionUid, ctx);
 
     // Verify user uid matches the cookie
     const cookieUid = ctx.cookies["uid"];
@@ -178,7 +202,7 @@ export const reactFunction = new Function<
     }
 
     // Verify user is registered for this session
-    const users = await userStore.get(token);
+    const users = await userStore.get(userToken);
     const isUser = users.some((u) => u.uid === uid);
     if (!isUser) {
       throw new Error("Not authorized: user not registered for this session");
@@ -186,13 +210,13 @@ export const reactFunction = new Function<
 
     const reactionDoc: Reaction = {
       time: Date.now(),
-      token,
+      token: userToken,
       uid,
       page,
       reaction,
     };
 
-    await reactionStore.store(token, reactionDoc);
+    await reactionStore.store(userToken, reactionDoc);
     return { success: true };
   }
 );
@@ -209,7 +233,7 @@ export const setStateFunction = new Function<
     state: string,
     ctx: RequestContext
   ): Promise<{ success: boolean }> => {
-    const { token, session: existing } = await getVerifiedSession(sessionUid, ctx);
+    const { token, session: existing } = await getVerifiedSessionAsHost(sessionUid, ctx);
 
     // Verify caller is the host
     const hosts = await hostStore.get(token);
@@ -222,6 +246,7 @@ export const setStateFunction = new Function<
 
     const sessionDoc: Session = {
       token,
+      userToken: existing.userToken,
       page,
       state,
       uid: existing.uid,
@@ -242,18 +267,29 @@ export const getStateFunction = new Function<[string, RequestContext], Session |
   arch,
   "get-state",
   async (sessionUid: string, ctx: RequestContext): Promise<Session | null> => {
-    const { token, session } = await getVerifiedSession(sessionUid, ctx);
-
-    // Verify user is logged in for this session
+    // Verify user is logged in
     const userUid = ctx.cookies["uid"];
     if (!userUid) {
       throw new Error("Not authorized: must be logged in");
     }
 
-    const users = await userStore.get(token);
-    const hosts = await hostStore.get(token);
-    const isUser = users.some((u) => u.uid === userUid);
-    const isHost = hosts.some((h) => h.uid === userUid);
+    // Try to verify as host first, then as user
+    let session: Session;
+    let isHost = false;
+    let isUser = false;
+
+    try {
+      const result = await getVerifiedSessionAsHost(sessionUid, ctx);
+      session = result.session;
+      const hosts = await hostStore.get(result.token);
+      isHost = hosts.some((h) => h.uid === userUid);
+    } catch {
+      // Not a host, try as user
+      const result = await getVerifiedSessionAsUser(sessionUid, ctx);
+      session = result.session;
+      const users = await userStore.get(result.userToken);
+      isUser = users.some((u) => u.uid === userUid);
+    }
 
     if (!isUser && !isHost) {
       throw new Error("Not authorized: user not registered for this session");
@@ -265,6 +301,7 @@ export const getStateFunction = new Function<[string, RequestContext], Session |
 
 /**
  * Public session lookup by session uid (no auth required)
+ * Returns userToken for audience members to use for authentication
  */
 export const getSessionFunction = new Function<[string, RequestContext], GetSessionResponse | null>(
   arch,
@@ -277,7 +314,7 @@ export const getSessionFunction = new Function<[string, RequestContext], GetSess
 
     const session = sessions[0];
     return {
-      token: session.token,
+      userToken: session.userToken,
       apiUrl: session.apiUrl,
       webUiUrl: session.webUiUrl,
       wsUrl: session.wsUrl,

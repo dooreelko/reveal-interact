@@ -6,7 +6,8 @@ import * as os from 'os';
 import { generateToken } from './utils';
 
 let baseUrl: string;
-let currentToken: string;
+let hostToken: string;
+let userToken: string;
 let sessionUid: string;
 let hostUid: string;
 let userUid: string;
@@ -31,7 +32,9 @@ Given('I have a valid session token for {string}', (sessionName: string) => {
   }
 
   const date = new Date().toISOString().split('T')[0];
-  currentToken = generateToken(sessionName, date, privateKey);
+  // Generate separate host and user tokens
+  hostToken = generateToken(`${sessionName} Host`, date, privateKey);
+  userToken = generateToken(`${sessionName} User`, date, privateKey);
 });
 
 async function performFetch(url: string, options: RequestInit = {}) {
@@ -51,9 +54,10 @@ When('I create a new session with the token', async () => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-session-token': currentToken,
+      'x-session-token': hostToken,
     },
     body: JSON.stringify({
+      userToken: userToken,
       apiUrl: baseUrl,
       webUiUrl: 'https://example.com/ui',
     }),
@@ -76,7 +80,7 @@ Then('the response should contain a {string} and {string}', (field1: string, fie
 });
 
 Then('the {string} should match the one I used', (field: string) => {
-  expect(lastResponse.data[field]).toBe(currentToken);
+  expect(lastResponse.data[field]).toBe(hostToken);
 });
 
 Given('I have created a session with that token', async () => {
@@ -85,9 +89,10 @@ Given('I have created a session with that token', async () => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-session-token': currentToken,
+      'x-session-token': hostToken,
     },
     body: JSON.stringify({
+      userToken: userToken,
       apiUrl: baseUrl,
       webUiUrl: 'https://example.com/ui',
     }),
@@ -102,7 +107,7 @@ When('I login to the session with the token', async () => {
   lastResponse = await performFetch(url, {
     method: 'POST',
     headers: {
-      'x-session-token': currentToken,
+      'x-session-token': userToken,
     },
   });
   if (lastResponse.status === 200) {
@@ -119,7 +124,7 @@ Given('I have logged in to the session', async () => {
   lastResponse = await performFetch(url, {
     method: 'POST',
     headers: {
-      'x-session-token': currentToken,
+      'x-session-token': userToken,
     },
   });
   expect(lastResponse.status).toBe(200);
@@ -131,7 +136,7 @@ When('I send a {string} reaction for page {string}', async (reaction: string, pa
   lastResponse = await performFetch(url, {
     method: 'POST',
     headers: {
-      'x-session-token': currentToken,
+      'x-session-token': userToken,
       'Cookie': `uid=${userUid}`,
     },
   });
@@ -147,7 +152,7 @@ When('I set the state to {string} for page {string}', async (state: string, page
   lastResponse = await performFetch(url, {
     method: 'POST',
     headers: {
-      'x-session-token': currentToken,
+      'x-session-token': hostToken,
       'Cookie': `uid=${hostUid}`,
     },
   });
@@ -157,7 +162,7 @@ When('I get the session state', async () => {
   const url = `${baseUrl}/api/v1/session/${sessionUid}/state`;
   lastResponse = await performFetch(url, {
     headers: {
-      'x-session-token': currentToken,
+      'x-session-token': hostToken,
       'Cookie': `uid=${hostUid}`,
     },
   });

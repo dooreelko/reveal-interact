@@ -403,16 +403,6 @@ export class RevintClient {
 }
 
 /**
- * Response from public session lookup
- */
-export interface SessionInfo {
-  token: string;
-  apiUrl: string;
-  webUiUrl: string;
-  wsUrl?: string;
-}
-
-/**
  * Fetch session info from a public session UID
  * @param sessionUid The public session identifier
  * @param apiUrl Optional API URL (if not provided, uses relative path)
@@ -420,7 +410,7 @@ export interface SessionInfo {
 export async function getSessionInfo(
   sessionUid: string,
   apiUrl?: string
-): Promise<SessionInfo> {
+): Promise<GetSessionResponse> {
   const endpoint = { baseUrl: apiUrl || "" };
   const publicFetcher = createPublicFetcher();
 
@@ -452,7 +442,7 @@ export async function createClientFromSession(
 ): Promise<RevintClient> {
   const sessionInfo = await getSessionInfo(sessionUid, apiUrl);
   return new RevintClient({
-    token: sessionInfo.token,
+    token: sessionInfo.userToken,
     apiUrl: sessionInfo.apiUrl,
     wsUrl: sessionInfo.wsUrl,
     sessionUid,

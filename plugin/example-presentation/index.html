@@ -82,8 +82,11 @@
   <script>
     // Configuration from URL params or defaults
     const params = new URLSearchParams(window.location.search);
-    const hostToken = params.get('token') || '';
     const apiUrl = params.get('apiUrl') || 'http://localhost:3000';
+    const sessionUid = params.get('sessionUid');
+
+
+    const hostToken = params.get('token') || '';
     const wsUrl = params.get('wsUrl') || 'ws://localhost:3002';
     const webUiUrl = params.get('webUiUrl') || 'http://localhost:5173';
 

@@ -4,6 +4,7 @@
   "workspaces": [
     "api/packages/*",
     "plugin",
+    "plugin/e2e-tests",
     "web/*"
   ],
   "scripts": {
