@@ -2,10 +2,10 @@ import express from "express";
 import { architectureBinding, createHttpBindings } from "@arinoto/cdk-arch";
 import {
   api,
-  sessionStoreApi,
-  hostStoreApi,
-  userStoreApi,
-  reactionStoreApi,
+  sessionStore,
+  hostStore,
+  userStore,
+  reactionStore,
 } from "@revint/arch";
 import { DockerApiServer } from "../docker-api-server";
 
@@ -29,24 +29,24 @@ const reactionStoreEndpoint = {
 };
 
 // Bind store functions to use HTTP to individual store services
-architectureBinding.bind(sessionStoreApi, {
+architectureBinding.bind(sessionStore, {
   baseUrl: sessionStoreEndpoint.baseUrl,
-  overloads: createHttpBindings(sessionStoreEndpoint, sessionStoreApi, ["store", "get", "getAll"] as const),
+  overloads: createHttpBindings(sessionStoreEndpoint, sessionStore, ["store", "get", "getAll"] as const),
 });
 
-architectureBinding.bind(hostStoreApi, {
+architectureBinding.bind(hostStore, {
   baseUrl: hostStoreEndpoint.baseUrl,
-  overloads: createHttpBindings(hostStoreEndpoint, hostStoreApi, ["store", "get", "getAll"] as const),
+  overloads: createHttpBindings(hostStoreEndpoint, hostStore, ["store", "get", "getAll"] as const),
 });
 
-architectureBinding.bind(userStoreApi, {
+architectureBinding.bind(userStore, {
   baseUrl: userStoreEndpoint.baseUrl,
-  overloads: createHttpBindings(userStoreEndpoint, userStoreApi, ["store", "get", "getAll"] as const),
+  overloads: createHttpBindings(userStoreEndpoint, userStore, ["store", "get", "getAll"] as const),
 });
 
-architectureBinding.bind(reactionStoreApi, {
+architectureBinding.bind(reactionStore, {
   baseUrl: reactionStoreEndpoint.baseUrl,
-  overloads: createHttpBindings(reactionStoreEndpoint, reactionStoreApi, ["store", "get", "getAll"] as const),
+  overloads: createHttpBindings(reactionStoreEndpoint, reactionStore, ["store", "get", "getAll"] as const),
 });
 
 // Bind API locally

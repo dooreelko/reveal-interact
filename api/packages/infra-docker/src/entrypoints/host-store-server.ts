@@ -1,7 +1,7 @@
 import express from "express";
 import { Pool } from "pg";
 import { architectureBinding } from "@arinoto/cdk-arch";
-import { hostStoreApi, Host } from "@revint/arch";
+import { hostStore, Host } from "@revint/arch";
 import { DockerApiServer } from "../docker-api-server";
 
 const PORT = parseInt(process.env.PORT || "3012");
@@ -71,7 +71,7 @@ async function getAll(): Promise<Host[]> {
 async function main() {
   await initDb();
 
-  architectureBinding.bind(hostStoreApi, {
+  architectureBinding.bind(hostStore, {
     baseUrl: `host-store:${PORT}`,
     overloads: {
       store,
@@ -80,7 +80,7 @@ async function main() {
     },
   });
 
-  const server = new DockerApiServer(hostStoreApi, {
+  const server = new DockerApiServer(hostStore, {
     binding: architectureBinding,
   });
   server.start(express, PORT);

@@ -129,7 +129,7 @@ async function getVerifiedSessionAsUser(sessionUid: string, ctx: RequestContext)
 /**
  * API functions
  */
-export const newSessionFunction = new Function<[CreateSessionRequest], NewSessionResponse, ApiRuntimeContext>(
+const newSessionFunction = new Function<[CreateSessionRequest], NewSessionResponse, ApiRuntimeContext>(
   arch,
   "new-session",
   async function (body: CreateSessionRequest): Promise<NewSessionResponse> {
@@ -174,12 +174,12 @@ export const newSessionFunction = new Function<[CreateSessionRequest], NewSessio
   }
 );
 
-export const loginFunction = new Function<[string], LoginResponse, ApiRuntimeContext>(
+const loginFunction = new Function<[string], LoginResponse, ApiRuntimeContext>(
   arch,
   "login",
   async function (sessionUid: string): Promise<LoginResponse> {
     const ctx = extractContext<RequestContext>(this);
-    const { userToken, session } = await getVerifiedSessionAsUser(sessionUid, ctx);
+    const { userToken } = await getVerifiedSessionAsUser(sessionUid, ctx);
 
     const existingUid = ctx.cookies["uid"];
 
@@ -198,11 +198,7 @@ export const loginFunction = new Function<[string], LoginResponse, ApiRuntimeCon
   }
 );
 
-export const reactFunction = new Function<
-  [string, string, string, string],
-  { success: boolean },
-  ApiRuntimeContext
->(
+const reactFunction = new Function<[string, string, string, string], { success: boolean }, ApiRuntimeContext>(
   arch,
   "react",
   async function (
@@ -240,11 +236,7 @@ export const reactFunction = new Function<
   }
 );
 
-export const setStateFunction = new Function<
-  [string, string, string],
-  { success: boolean },
-  ApiRuntimeContext
->(
+const setStateFunction = new Function<[string, string, string], { success: boolean }, ApiRuntimeContext>(
   arch,
   "set-state",
   async function (
@@ -283,7 +275,7 @@ export const setStateFunction = new Function<
   }
 );
 
-export const getStateFunction = new Function<[string], Session | null, ApiRuntimeContext>(
+const getStateFunction = new Function<[string], Session | null, ApiRuntimeContext>(
   arch,
   "get-state",
   async function (sessionUid: string): Promise<Session | null> {
@@ -355,31 +347,6 @@ export const api = new ApiContainer(arch, "api", {
   getState: { path: "GET /api/v1/session/{sessionUid}/state", handler: getStateFunction },
 });
 
-// Individual datastore API containers
-export const sessionStoreApi = new ApiContainer(arch, "session-store-api", {
-  store: { path: "POST /store/{key}", handler: sessionStore.storeFunction },
-  get: { path: "GET /store/{key}", handler: sessionStore.getFunction },
-  getAll: { path: "GET /store", handler: sessionStore.getAllFunction },
-});
-
-export const hostStoreApi = new ApiContainer(arch, "host-store-api", {
-  store: { path: "POST /store/{key}", handler: hostStore.storeFunction },
-  get: { path: "GET /store/{key}", handler: hostStore.getFunction },
-  getAll: { path: "GET /store", handler: hostStore.getAllFunction },
-});
-
-export const userStoreApi = new ApiContainer(arch, "user-store-api", {
-  store: { path: "POST /store/{key}", handler: userStore.storeFunction },
-  get: { path: "GET /store/{key}", handler: userStore.getFunction },
-  getAll: { path: "GET /store", handler: userStore.getAllFunction },
-});
-
-export const reactionStoreApi = new ApiContainer(arch, "reaction-store-api", {
-  store: { path: "POST /store/{key}", handler: reactionStore.storeFunction },
-  get: { path: "GET /store/{key}", handler: reactionStore.getFunction },
-  getAll: { path: "GET /store", handler: reactionStore.getAllFunction },
-});
-
 // WebSocket container
 export const ws = new WsContainer(arch, "ws", {
   hostPipe: { path: "/ws/v1/session/{sessionUid}/host/{uid}/pipe" },
@@ -388,9 +355,6 @@ export const ws = new WsContainer(arch, "ws", {
 
 export const hostPipe = ws.getRoute("hostPipe");
 export const userPipe = ws.getRoute("userPipe");
-
-// Export utility functions for use by other packages
-export { verifyToken };
 
 // Synthesize and output architecture definition
 if (require.main === module) {

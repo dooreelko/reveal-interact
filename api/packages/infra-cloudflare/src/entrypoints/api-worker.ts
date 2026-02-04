@@ -3,10 +3,10 @@
 import { architectureBinding } from "@arinoto/cdk-arch";
 import {
   api,
-  sessionStoreApi,
-  hostStoreApi,
-  userStoreApi,
-  reactionStoreApi,
+  sessionStore,
+  hostStore,
+  userStore,
+  reactionStore,
 } from "@revint/arch";
 import { createWorkerHandler } from "../cloudflare-worker-handler.js";
 import { createServiceBindingHandlers, ServiceBinding } from "../service-binding-handler.js";
@@ -22,38 +22,38 @@ interface Env {
 let currentEnv: Env | null = null;
 
 // Bind store APIs with service binding handlers using createHttpBindings
-architectureBinding.bind(sessionStoreApi, {
+architectureBinding.bind(sessionStore, {
   baseUrl: "session-store",
   overloads: createServiceBindingHandlers(
     () => currentEnv!.SESSION_STORE,
-    sessionStoreApi,
+    sessionStore,
     ["store", "get", "getAll"] as const
   ),
 });
 
-architectureBinding.bind(hostStoreApi, {
+architectureBinding.bind(hostStore, {
   baseUrl: "host-store",
   overloads: createServiceBindingHandlers(
     () => currentEnv!.HOST_STORE,
-    hostStoreApi,
+    hostStore,
     ["store", "get", "getAll"] as const
   ),
 });
 
-architectureBinding.bind(userStoreApi, {
+architectureBinding.bind(userStore, {
   baseUrl: "user-store",
   overloads: createServiceBindingHandlers(
     () => currentEnv!.USER_STORE,
-    userStoreApi,
+    userStore,
     ["store", "get", "getAll"] as const
   ),
 });
 
-architectureBinding.bind(reactionStoreApi, {
+architectureBinding.bind(reactionStore, {
   baseUrl: "reaction-store",
   overloads: createServiceBindingHandlers(
     () => currentEnv!.REACTION_STORE,
-    reactionStoreApi,
+    reactionStore,
     ["store", "get", "getAll"] as const
   ),
 });

@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { architectureBinding } from "@arinoto/cdk-arch";
-import { hostStoreApi, Host } from "@revint/arch";
+import { hostStore, Host } from "@revint/arch";
 import { createWorkerHandler } from "../cloudflare-worker-handler.js";
 
 interface Env {
@@ -29,7 +29,7 @@ async function getAll(): Promise<Host[]> {
 }
 
 // Bind the store API with KV overloads
-architectureBinding.bind(hostStoreApi, {
+architectureBinding.bind(hostStore, {
   baseUrl: "host-store",
   overloads: {
     store,
@@ -38,7 +38,7 @@ architectureBinding.bind(hostStoreApi, {
   },
 });
 
-const handleRequest = createWorkerHandler(hostStoreApi);
+const handleRequest = createWorkerHandler(hostStore);
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {

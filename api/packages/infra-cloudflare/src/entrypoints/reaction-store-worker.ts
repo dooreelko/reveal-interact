@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { architectureBinding } from "@arinoto/cdk-arch";
-import { reactionStoreApi, Reaction } from "@revint/arch";
+import { reactionStore, Reaction } from "@revint/arch";
 import { createWorkerHandler } from "../cloudflare-worker-handler.js";
 
 interface Env {
@@ -29,7 +29,7 @@ async function getAll(): Promise<Reaction[]> {
 }
 
 // Bind the store API with KV overloads
-architectureBinding.bind(reactionStoreApi, {
+architectureBinding.bind(reactionStore, {
   baseUrl: "reaction-store",
   overloads: {
     store,
@@ -38,7 +38,7 @@ architectureBinding.bind(reactionStoreApi, {
   },
 });
 
-const handleRequest = createWorkerHandler(reactionStoreApi);
+const handleRequest = createWorkerHandler(reactionStore);
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {

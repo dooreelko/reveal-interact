@@ -1,7 +1,7 @@
 import express from "express";
 import { Pool } from "pg";
 import { architectureBinding } from "@arinoto/cdk-arch";
-import { reactionStoreApi, Reaction } from "@revint/arch";
+import { reactionStore, Reaction } from "@revint/arch";
 import { DockerApiServer } from "../docker-api-server";
 
 const PORT = parseInt(process.env.PORT || "3014");
@@ -71,7 +71,7 @@ async function getAll(): Promise<Reaction[]> {
 async function main() {
   await initDb();
 
-  architectureBinding.bind(reactionStoreApi, {
+  architectureBinding.bind(reactionStore, {
     baseUrl: `reaction-store:${PORT}`,
     overloads: {
       store,
@@ -80,7 +80,7 @@ async function main() {
     },
   });
 
-  const server = new DockerApiServer(reactionStoreApi, {
+  const server = new DockerApiServer(reactionStore, {
     binding: architectureBinding,
   });
   server.start(express, PORT);

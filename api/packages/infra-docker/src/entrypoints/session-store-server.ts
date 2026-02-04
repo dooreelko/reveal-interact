@@ -1,7 +1,7 @@
 import express from "express";
 import { Pool } from "pg";
 import { architectureBinding } from "@arinoto/cdk-arch";
-import { sessionStoreApi, Session } from "@revint/arch";
+import { sessionStore, Session } from "@revint/arch";
 import { DockerApiServer } from "../docker-api-server";
 
 const PORT = parseInt(process.env.PORT || "3011");
@@ -71,7 +71,7 @@ async function getAll(): Promise<Session[]> {
 async function main() {
   await initDb();
 
-  architectureBinding.bind(sessionStoreApi, {
+  architectureBinding.bind(sessionStore, {
     baseUrl: `session-store:${PORT}`,
     overloads: {
       store,
@@ -80,7 +80,7 @@ async function main() {
     },
   });
 
-  const server = new DockerApiServer(sessionStoreApi, {
+  const server = new DockerApiServer(sessionStore, {
     binding: architectureBinding,
   });
   server.start(express, PORT);

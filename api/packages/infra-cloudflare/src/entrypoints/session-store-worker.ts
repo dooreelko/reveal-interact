@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { architectureBinding } from "@arinoto/cdk-arch";
-import { sessionStoreApi, Session } from "@revint/arch";
+import { sessionStore, Session } from "@revint/arch";
 import { createWorkerHandler } from "../cloudflare-worker-handler.js";
 
 interface Env {
@@ -31,7 +31,7 @@ async function getAll(): Promise<Session[]> {
 }
 
 // Bind the store API with KV overloads
-architectureBinding.bind(sessionStoreApi, {
+architectureBinding.bind(sessionStore, {
   baseUrl: "session-store",
   overloads: {
     store,
@@ -40,7 +40,7 @@ architectureBinding.bind(sessionStoreApi, {
   },
 });
 
-const handleRequest = createWorkerHandler(sessionStoreApi);
+const handleRequest = createWorkerHandler(sessionStore);
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
