@@ -24,10 +24,13 @@ async function get(key: string): Promise<Session[]> {
   return await kv.get<Session[]>(key, "json") || [];
 }
 
-async function getAll(): Promise<Session[]> {
-  // KV list doesn't return values, so we'd need to iterate
-  // For now, return empty - getAll is not commonly used
-  return [];
+async function list(): Promise<Session[]> {
+  const kv = currentEnv!.SESSION_KV;
+  const { keys } = await kv.list();
+  const docArrays = await Promise.all(
+    keys.map(key => kv.get<Session[]>(key.name, "json"))
+  );
+  return docArrays.flatMap(docs => docs ?? []);
 }
 
 // Bind the store API with KV overloads
@@ -36,7 +39,7 @@ architectureBinding.bind(sessionStore, {
   overloads: {
     store,
     get,
-    getAll,
+    list,
   },
 });
 

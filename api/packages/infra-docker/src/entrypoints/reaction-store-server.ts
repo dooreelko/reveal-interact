@@ -43,27 +43,49 @@ async function initDb(): Promise<void> {
   throw new Error("Failed to connect to database");
 }
 
+// Key type for indexed store
+type ReactionKey = { id: string; sessionUid: string; page: string; uid: string };
+
 // PostgreSQL handlers
-async function store(key: string, doc: Reaction): Promise<{ success: boolean }> {
+async function store(key: ReactionKey, doc: Reaction): Promise<{ success: boolean }> {
   await pool.query(
     "INSERT INTO documents (store, key, data) VALUES ($1, $2, $3)",
-    [STORE_NAME, key, JSON.stringify(doc)]
+    [STORE_NAME, key.id, JSON.stringify(doc)]
   );
   return { success: true };
 }
 
-async function get(key: string): Promise<Reaction[]> {
+async function get(key: ReactionKey): Promise<Reaction[]> {
   const result = await pool.query(
     "SELECT data FROM documents WHERE store = $1 AND key = $2 ORDER BY created_at DESC",
-    [STORE_NAME, key]
+    [STORE_NAME, key.id]
   );
   return result.rows.map((row) => row.data as Reaction);
 }
 
-async function getAll(): Promise<Reaction[]> {
+async function list(filters?: Partial<Reaction>): Promise<Reaction[]> {
+  if (!filters || Object.keys(filters).length === 0) {
+    const result = await pool.query(
+      "SELECT data FROM documents WHERE store = $1 ORDER BY created_at DESC",
+      [STORE_NAME]
+    );
+    return result.rows.map((row) => row.data as Reaction);
+  }
+
+  // Build WHERE clause for JSONB filtering
+  const conditions = ["store = $1"];
+  const params: unknown[] = [STORE_NAME];
+  let paramIndex = 2;
+
+  for (const [key, value] of Object.entries(filters)) {
+    conditions.push(`data->>'${key}' = $${paramIndex}`);
+    params.push(value);
+    paramIndex++;
+  }
+
   const result = await pool.query(
-    "SELECT data FROM documents WHERE store = $1 ORDER BY created_at DESC",
-    [STORE_NAME]
+    `SELECT data FROM documents WHERE ${conditions.join(" AND ")} ORDER BY created_at DESC`,
+    params
   );
   return result.rows.map((row) => row.data as Reaction);
 }
@@ -76,7 +98,7 @@ async function main() {
     overloads: {
       store,
       get,
-      getAll,
+      list,
     },
   });
 

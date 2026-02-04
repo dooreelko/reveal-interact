@@ -44,13 +44,14 @@ export function createWorkerHandler<TRoutes extends ApiRoutes>(api: ApiContainer
         // Build args: path params, then body if POST/PUT (context passed via runtime context)
         const args: unknown[] = [...params];
         if (["POST", "PUT"].includes(method)) {
-          try {
-            const body = await request.json();
-            if (body && typeof body === "object" && Object.keys(body).length > 0) {
+          const body = await request.json();
+          if (body !== undefined && body !== null) {
+            // Spread array bodies to support multi-argument routes
+            if (Array.isArray(body)) {
+              args.push(...body);
+            } else {
               args.push(body);
             }
-          } catch {
-            // No body or invalid JSON, continue without body
           }
         }
 

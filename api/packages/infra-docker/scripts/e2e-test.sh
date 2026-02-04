@@ -27,4 +27,4 @@ echo "Waiting for containers to be ready..."
 sleep 10
 
 echo "Running E2E tests..."
-cd "$E2E_DIR" && BASE_URL=http://localhost:3000 npm test
+cd "$E2E_DIR" && BASE_URL=http://localhost:3000 npm run test:live

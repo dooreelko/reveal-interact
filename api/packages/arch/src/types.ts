@@ -49,9 +49,11 @@ export interface Reaction {
   time: number;
   token: string;
   uid: string;
+  sessionUid: string;
   page: string;
   reaction: string;
 }
+
 
 /**
  * Request body for session creation

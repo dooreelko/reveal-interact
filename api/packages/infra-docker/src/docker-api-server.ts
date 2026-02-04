@@ -86,8 +86,13 @@ export class DockerApiServer<TRoutes extends ApiRoutes = ApiRoutes> {
     const expressHandler = async (req: Request, res: Response) => {
       try {
         const args: unknown[] = paramNames.map((p) => req.params[p]);
-        if (req.body && Object.keys(req.body).length > 0) {
-          args.push(req.body);
+        if (req.body !== undefined && req.body !== null) {
+          // Spread array bodies to support multi-argument routes
+          if (Array.isArray(req.body)) {
+            args.push(...req.body);
+          } else {
+            args.push(req.body);
+          } 
         }
 
         // Pass RequestContext via runtime context (bound to `this` in handler)

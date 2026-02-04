@@ -9,7 +9,7 @@ import {
   type MockStores,
   type ContextProvider,
 } from "./setup";
-import { api } from "../src/architecture";
+import { api, sessionStore } from "../src/architecture";
 import type { Session } from "../src/types";
 
 describe("Architecture Unit Tests", () => {
@@ -291,37 +291,38 @@ describe("Architecture Unit Tests", () => {
 
       assert.deepStrictEqual(result, { success: true });
 
-      // Verify reaction was stored
-      const reactions = await stores.reactions.get(userToken);
+      // Verify reaction was stored - use list with filters
+      const reactions = await stores.reactions.list({ sessionUid });
       assert.strictEqual(reactions.length, 1);
       assert.strictEqual(reactions[0].page, "1");
       assert.strictEqual(reactions[0].reaction, "thumbsup");
       assert.strictEqual(reactions[0].uid, userId);
+      assert.strictEqual(reactions[0].sessionUid, sessionUid);
     });
 
-    // it("should record multiple reactions for the same logged-in user on the same page", async () => {
-    //   const client = createMockBinding(
-    //     api,
-    //     ["react"] as const,
-    //     () => createMockContext({
-    //       token: userToken,
-    //       publicKey: keys.publicKey,
-    //       cookies: { uid: userId },
-    //     })
-    //   );
+    it("should record multiple reactions for the same logged-in user on the same page", async () => {
+      const client = createMockBinding(
+        api,
+        ["react"] as const,
+        () => createMockContext({
+          token: userToken,
+          publicKey: keys.publicKey,
+          cookies: { uid: userId },
+        })
+      );
 
-    //   await client.react(sessionUid, userId, "1", "thumbsup");
-    //   const result = await client.react(sessionUid, userId, "1", "thumbsup");
+      await client.react(sessionUid, userId, "1", "thumbsup");
+      const result = await client.react(sessionUid, userId, "1", "thumbsup");
 
-    //   assert.deepStrictEqual(result, { success: true });
+      assert.deepStrictEqual(result, { success: true });
 
-    //   // Verify reaction was stored
-    //   const reactions = await stores.reactions.get(userToken);
-    //   assert.strictEqual(reactions.length, 2);
-    //   assert.strictEqual(reactions[0].page, reactions[1].page);
-    //   assert.strictEqual(reactions[0].reaction, reactions[1].reaction);
-    //   assert.strictEqual(reactions[0].uid, reactions[1].uid);
-    // });
+      // Verify both reactions were stored - use list with filters
+      const reactions = await stores.reactions.list({ sessionUid, page: "1", uid: userId });
+      assert.strictEqual(reactions.length, 2);
+      assert.strictEqual(reactions[0].page, reactions[1].page);
+      assert.strictEqual(reactions[0].reaction, reactions[1].reaction);
+      assert.strictEqual(reactions[0].uid, reactions[1].uid);
+    });
 
     it("should fail without authentication", async () => {
       const client = createMockBinding(
@@ -628,6 +629,16 @@ describe("Architecture Unit Tests", () => {
       await assert.rejects(
         () => client.getState(sessionUid),
         /user not registered/
+      );
+    });
+  });
+
+  describe("DataStore validation", () => {
+    it("should throw error when filtering on store without indices", async () => {
+      // sessionStore has no indices defined
+      await assert.rejects(
+        () => sessionStore.list({ token: "some-token" } as any),
+        /Cannot filter by fields when no indices are defined/
       );
     });
   });

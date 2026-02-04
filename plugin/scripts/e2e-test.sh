@@ -99,7 +99,7 @@ fi
 # Run Cucumber tests
 echo ""
 echo "Running Cucumber tests..."
-npm test
+npm run test:live
 
 echo ""
 echo "=== All tests passed ==="

@@ -27,7 +27,7 @@ architectureBinding.bind(sessionStore, {
   overloads: createServiceBindingHandlers(
     () => currentEnv!.SESSION_STORE,
     sessionStore,
-    ["store", "get", "getAll"] as const
+    ["store", "get", "list"] as const
   ),
 });
 
@@ -36,7 +36,7 @@ architectureBinding.bind(hostStore, {
   overloads: createServiceBindingHandlers(
     () => currentEnv!.HOST_STORE,
     hostStore,
-    ["store", "get", "getAll"] as const
+    ["store", "get", "list"] as const
   ),
 });
 
@@ -45,7 +45,7 @@ architectureBinding.bind(userStore, {
   overloads: createServiceBindingHandlers(
     () => currentEnv!.USER_STORE,
     userStore,
-    ["store", "get", "getAll"] as const
+    ["store", "get", "list"] as const
   ),
 });
 
@@ -54,7 +54,7 @@ architectureBinding.bind(reactionStore, {
   overloads: createServiceBindingHandlers(
     () => currentEnv!.REACTION_STORE,
     reactionStore,
-    ["store", "get", "getAll"] as const
+    ["store", "get", "list"] as const
   ),
 });
 

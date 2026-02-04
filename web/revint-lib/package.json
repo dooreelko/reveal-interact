@@ -27,7 +27,7 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
-    "@arinoto/cdk-arch": "0.5.0",
+    "@arinoto/cdk-arch": "0.6.0",
     "@revint/arch": "*"
   },
   "keywords": [

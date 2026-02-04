@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "test": "cucumber-js"
+    "test:live": "cucumber-js"
   },
   "devDependencies": {
     "@cucumber/cucumber": "^10.3.1",

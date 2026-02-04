@@ -60,10 +60,28 @@ async function get(key: string): Promise<User[]> {
   return result.rows.map((row) => row.data as User);
 }
 
-async function getAll(): Promise<User[]> {
+async function list(filters?: Partial<User>): Promise<User[]> {
+  if (!filters || Object.keys(filters).length === 0) {
+    const result = await pool.query(
+      "SELECT data FROM documents WHERE store = $1 ORDER BY created_at DESC",
+      [STORE_NAME]
+    );
+    return result.rows.map((row) => row.data as User);
+  }
+
+  const conditions = ["store = $1"];
+  const params: unknown[] = [STORE_NAME];
+  let paramIndex = 2;
+
+  for (const [key, value] of Object.entries(filters)) {
+    conditions.push(`data->>'${key}' = $${paramIndex}`);
+    params.push(value);
+    paramIndex++;
+  }
+
   const result = await pool.query(
-    "SELECT data FROM documents WHERE store = $1 ORDER BY created_at DESC",
-    [STORE_NAME]
+    `SELECT data FROM documents WHERE ${conditions.join(" AND ")} ORDER BY created_at DESC`,
+    params
   );
   return result.rows.map((row) => row.data as User);
 }
@@ -76,7 +94,7 @@ async function main() {
     overloads: {
       store,
       get,
-      getAll,
+      list,
     },
   });
 

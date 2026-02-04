@@ -24,8 +24,13 @@ async function get(key: string): Promise<User[]> {
   return await kv.get<User[]>(key, "json") || [];
 }
 
-async function getAll(): Promise<User[]> {
-  return [];
+async function list(): Promise<User[]> {
+  const kv = currentEnv!.USER_KV;
+  const { keys } = await kv.list();
+  const docArrays = await Promise.all(
+    keys.map(key => kv.get<User[]>(key.name, "json"))
+  );
+  return docArrays.flatMap(docs => docs ?? []);
 }
 
 // Bind the store API with KV overloads
@@ -34,7 +39,7 @@ architectureBinding.bind(userStore, {
   overloads: {
     store,
     get,
-    getAll,
+    list,
   },
 });
 

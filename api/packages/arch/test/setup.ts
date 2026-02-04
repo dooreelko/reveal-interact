@@ -42,15 +42,15 @@ export function generateToken(name: string, date: string, privateKey: string): s
 }
 
 /**
- * In-memory store implementation for testing
+ * In-memory store implementation for testing.
+ * Default behavior is UPSERT (replace existing entries).
  */
-export class InMemoryStore<T> {
-  private data: Map<string, T[]> = new Map();
+export class InMemoryStore<T extends Record<string, unknown>> {
+  protected data: Map<string, T[]> = new Map();
   public storeCalls: Array<{ key: string; doc: T }> = [];
 
   async store(key: string, doc: T): Promise<{ success: boolean }> {
     this.storeCalls.push({ key, doc });
-    const existing = this.data.get(key) || [];
     // Replace existing entries (simulates upsert behavior)
     this.data.set(key, [doc]);
     return { success: true };
@@ -60,12 +60,28 @@ export class InMemoryStore<T> {
     return this.data.get(key) || [];
   }
 
-  async getAll(): Promise<T[]> {
+  /**
+   * List all documents, optionally filtered by field values.
+   */
+  async list(filters?: Partial<T>): Promise<T[]> {
     const all: T[] = [];
     for (const entries of this.data.values()) {
-      all.push(...entries);
+      for (const entry of entries) {
+        if (!filters || this.matchesFilters(entry, filters)) {
+          all.push(entry);
+        }
+      }
     }
     return all;
+  }
+
+  private matchesFilters(doc: T, filters: Partial<T>): boolean {
+    for (const [key, value] of Object.entries(filters)) {
+      if (doc[key] !== value) {
+        return false;
+      }
+    }
+    return true;
   }
 
   clear(): void {
@@ -101,7 +117,7 @@ export function setupInMemoryStores(): MockStores {
     overloads: {
       store: (key: string, doc: Session) => sessions.store(key, doc),
       get: (key: string) => sessions.get(key),
-      getAll: () => sessions.getAll(),
+      list: (filters?: Partial<Session>) => sessions.list(filters),
     },
   });
 
@@ -110,7 +126,7 @@ export function setupInMemoryStores(): MockStores {
     overloads: {
       store: (key: string, doc: Host) => hosts.store(key, doc),
       get: (key: string) => hosts.get(key),
-      getAll: () => hosts.getAll(),
+      list: (filters?: Partial<Host>) => hosts.list(filters),
     },
   });
 
@@ -119,16 +135,18 @@ export function setupInMemoryStores(): MockStores {
     overloads: {
       store: (key: string, doc: User) => users.store(key, doc),
       get: (key: string) => users.get(key),
-      getAll: () => users.getAll(),
+      list: (filters?: Partial<User>) => users.list(filters),
     },
   });
 
+  // ReactionStore uses IndexedKey - extract id for storage key
+  type ReactionKey = { id: string; sessionUid: string; page: string; uid: string };
   architectureBinding.bind(reactionStore, {
     baseUrl: "memory://reaction-store",
     overloads: {
-      store: (key: string, doc: Reaction) => reactions.store(key, doc),
-      get: (key: string) => reactions.get(key),
-      getAll: () => reactions.getAll(),
+      store: (key: ReactionKey, doc: Reaction) => reactions.store(key.id, doc),
+      get: (key: ReactionKey) => reactions.get(key.id),
+      list: (filters?: Partial<Reaction>) => reactions.list(filters),
     },
   });
 

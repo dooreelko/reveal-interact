@@ -14,7 +14,7 @@
     "test:e2e": "./scripts/e2e-test.sh"
   },
   "dependencies": {
-    "@arinoto/cdk-arch": "0.5.0",
+    "@arinoto/cdk-arch": "0.6.0",
     "@cdktf/provider-cloudflare": "^13.9.1",
     "@revint/arch": "*",
     "cdktf": "^0.20.0",

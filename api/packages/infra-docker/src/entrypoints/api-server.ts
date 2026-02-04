@@ -31,22 +31,22 @@ const reactionStoreEndpoint = {
 // Bind store functions to use HTTP to individual store services
 architectureBinding.bind(sessionStore, {
   baseUrl: sessionStoreEndpoint.baseUrl,
-  overloads: createHttpBindings(sessionStoreEndpoint, sessionStore, ["store", "get", "getAll"] as const),
+  overloads: createHttpBindings(sessionStoreEndpoint, sessionStore, ["store", "get", "list"] as const),
 });
 
 architectureBinding.bind(hostStore, {
   baseUrl: hostStoreEndpoint.baseUrl,
-  overloads: createHttpBindings(hostStoreEndpoint, hostStore, ["store", "get", "getAll"] as const),
+  overloads: createHttpBindings(hostStoreEndpoint, hostStore, ["store", "get", "list"] as const),
 });
 
 architectureBinding.bind(userStore, {
   baseUrl: userStoreEndpoint.baseUrl,
-  overloads: createHttpBindings(userStoreEndpoint, userStore, ["store", "get", "getAll"] as const),
+  overloads: createHttpBindings(userStoreEndpoint, userStore, ["store", "get", "list"] as const),
 });
 
 architectureBinding.bind(reactionStore, {
   baseUrl: reactionStoreEndpoint.baseUrl,
-  overloads: createHttpBindings(reactionStoreEndpoint, reactionStore, ["store", "get", "getAll"] as const),
+  overloads: createHttpBindings(reactionStoreEndpoint, reactionStore, ["store", "get", "list"] as const),
 });
 
 // Bind API locally

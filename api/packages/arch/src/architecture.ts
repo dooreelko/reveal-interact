@@ -22,7 +22,11 @@ export const arch = new Architecture("reveal-interact");
 export const sessionStore = new DataStore<Session>(arch, "session-store");
 export const hostStore = new DataStore<Host>(arch, "host-store");
 export const userStore = new DataStore<User>(arch, "user-store");
-export const reactionStore = new DataStore<Reaction>(arch, "reaction-store");
+export const reactionStore = new DataStore<Reaction, "sessionUid" | "page" | "uid">(
+  arch,
+  "reaction-store",
+  { indices: ["sessionUid", "page", "uid"] }
+);
 
 // Runtime context type for all API functions
 type ApiRuntimeContext = FunctionRuntimeContextMarker & RequestContext;
@@ -223,15 +227,24 @@ const reactFunction = new Function<[string, string, string, string], { success: 
       throw new Error("Not authorized: user not registered for this session");
     }
 
+    const timestamp = Date.now();
+    const reactionId = `${timestamp}-${generateId()}`;
+
     const reactionDoc: Reaction = {
-      time: Date.now(),
+      time: timestamp,
       token: userToken,
       uid,
+      sessionUid,
       page,
       reaction,
     };
 
-    await reactionStore.store(userToken, reactionDoc);
+    await reactionStore.store({
+      id: reactionId,
+      sessionUid,
+      page,
+      uid,
+    }, reactionDoc);
     return { success: true };
   }
 );

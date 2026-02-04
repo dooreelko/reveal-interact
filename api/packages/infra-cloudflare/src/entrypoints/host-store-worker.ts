@@ -24,8 +24,13 @@ async function get(key: string): Promise<Host[]> {
   return await kv.get<Host[]>(key, "json") || [];
 }
 
-async function getAll(): Promise<Host[]> {
-  return [];
+async function list(): Promise<Host[]> {
+  const kv = currentEnv!.HOST_KV;
+  const { keys } = await kv.list();
+  const docArrays = await Promise.all(
+    keys.map(key => kv.get<Host[]>(key.name, "json"))
+  );
+  return docArrays.flatMap(docs => docs ?? []);
 }
 
 // Bind the store API with KV overloads
@@ -34,7 +39,7 @@ architectureBinding.bind(hostStore, {
   overloads: {
     store,
     get,
-    getAll,
+    list,
   },
 });
 

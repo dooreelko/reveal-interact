@@ -46,4 +46,4 @@ echo "Waiting for worker to be ready..."
 sleep 3
 
 echo "Running E2E tests..."
-cd "$E2E_DIR" && BASE_URL="$WORKER_URL" npm test
+cd "$E2E_DIR" && BASE_URL="$WORKER_URL" npm run test:live

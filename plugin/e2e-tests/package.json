@@ -3,10 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "test": "cucumber-js"
+    "test:live": "cucumber-js"
   },
   "devDependencies": {
-    "@arinoto/cdk-arch": "0.5.0",
+    "@arinoto/cdk-arch": "0.6.0",
     "@cucumber/cucumber": "^10.3.1",
     "@revint/arch": "*",
     "@types/node": "^20.0.0",
