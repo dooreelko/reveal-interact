@@ -132,9 +132,8 @@ function createPublicFetcher(): Fetcher {
 /**
  * Create API client for user operations
  */
-function createUserApiClient(apiUrl: string, token: string): UserApiClient {
+async function createUserApiClient(apiUrl: string, token: string, sessionUid: string): Promise<UserApiClient> {
   const endpoint = { baseUrl: apiUrl };
-  const authFetcher = createAuthFetcher(token);
   const publicFetcher = createPublicFetcher();
 
   // Create bindings with appropriate fetchers - types now match directly (no RequestContext in signatures)
@@ -144,6 +143,13 @@ function createUserApiClient(apiUrl: string, token: string): UserApiClient {
     ["getSession"] as const,
     publicFetcher
   );
+
+  if (!token && !!sessionUid) {
+    await publicBindings.getSession(sessionUid);
+  }
+
+  const authFetcher = createAuthFetcher(token);
+
   const authBindings = createHttpBindings(
     endpoint,
     api,
@@ -159,6 +165,8 @@ function createUserApiClient(apiUrl: string, token: string): UserApiClient {
   };
 }
 
+const stateHash = (session: Pick<Session, 'page' | 'state'>) => `${session.page}::${session.state}`;
+
 /**
  * RevintClient - Main client for audience interaction
  */
@@ -171,7 +179,9 @@ export class RevintClient {
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private intentionallyClosed = false;
-  private apiClient: UserApiClient;
+  private apiClientCache: UserApiClient | null = null;
+  private interval: NodeJS.Timeout | null = null;
+  private lastState: Session | null = null;
 
   constructor(config: RevintClientConfig) {
     this.config = {
@@ -180,7 +190,15 @@ export class RevintClient {
       maxReconnectAttempts: 10,
       ...config,
     };
-    this.apiClient = createUserApiClient(config.apiUrl, config.token);
+  }
+
+  get apiClient(): Promise<UserApiClient> {
+    if (!!this.apiClientCache) {
+      return Promise.resolve(this.apiClientCache);
+    }
+
+    return createUserApiClient(this.config.apiUrl, this.config.token, this.config.sessionUid)
+      .then(c => { return this.apiClientCache = c });
   }
 
   /**
@@ -188,7 +206,8 @@ export class RevintClient {
    * This must be called before connecting to WebSocket or sending reactions
    */
   async login(): Promise<string> {
-    const result = await this.apiClient.login(this.config.sessionUid);
+    const client = await this.apiClient;
+    const result = await client.login(this.config.sessionUid);
     this.uid = result.uid;
     return result.uid;
   }
@@ -215,6 +234,21 @@ export class RevintClient {
 
     this.intentionallyClosed = false;
     this.createWebSocket();
+
+    if (!!this.interval) {
+      clearInterval(this.interval);
+    }
+
+    this.interval =  setInterval(async () => {
+      const preState = !!this.lastState ? stateHash(this.lastState) : '';
+
+      const newState = await this.getState();
+
+      if (!!newState && stateHash(newState) !== preState) {
+        this.notifyStateCallbacks(newState);
+      }
+
+    }, 1*1000);
   }
 
   private createWebSocket(): void {
@@ -346,7 +380,8 @@ export class RevintClient {
       throw new Error("Must call login() before react()");
     }
 
-    await this.apiClient.react(
+    const client = await this.apiClient;
+    await client.react(
       this.config.sessionUid,
       this.uid,
       page,
@@ -358,10 +393,14 @@ export class RevintClient {
    * Get the current session state
    */
   async getState(): Promise<StateChangeEvent | null> {
-    const session = await this.apiClient.getState(this.config.sessionUid);
+    const client = await this.apiClient;
+    const session = await client.getState(this.config.sessionUid);
     if (!session) {
       return null;
     }
+
+    this.lastState = session;
+
     return {
       page: session.page,
       state: session.state,

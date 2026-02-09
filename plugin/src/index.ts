@@ -315,7 +315,7 @@ export function getQRCodeUrl(): string | null {
   if (!state.config || !state.sessionUid) {
     return null;
   }
-  return `${state.config.webUiUrl}?session=${encodeURIComponent(state.sessionUid)}`;
+  return `${state.config.webUiUrl}?session=${encodeURIComponent(state.sessionUid)}&apiUrl=${state.config.apiUrl}`;
 }
 
 /**
@@ -348,7 +348,7 @@ export default function RevealInteract(): {
       }
 
       if (!pluginConfig.hostToken || !pluginConfig.userToken || !pluginConfig.webUiUrl || !pluginConfig.apiUrl) {
-        console.error("RevealInteract: Missing required configuration (hostToken, userToken, webUiUrl, apiUrl)");
+        console.error(`RevealInteract: Missing required configuration (hostToken: ${!!pluginConfig.hostToken}, userToken: ${!!pluginConfig.userToken}, webUiUrl: ${pluginConfig.webUiUrl}, apiUrl: ${pluginConfig.apiUrl})`);
         return;
       }
 

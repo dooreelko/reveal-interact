@@ -36,6 +36,13 @@ const server = http.createServer((req, res) => {
   }
 
   let filePath = req.url.split('?')[0];
+
+  if (filePath === '/token' ) {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end(process.env.HOST_TOKEN);
+    return;
+  }
+
   if (filePath === '/') {
     filePath = '/index.html';
   }
@@ -70,5 +77,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Example server running at http://localhost:${PORT}`);
-  console.log(`Open http://localhost:${PORT}?token=YOUR_TOKEN&apiUrl=http://localhost:3000`);
+  console.log(`Open http://localhost:${PORT}?userToken=${process.env.USER_TOKEN}&apiUrl=${process.env.API_URL || 'http://localhost:3000'}`);
 });

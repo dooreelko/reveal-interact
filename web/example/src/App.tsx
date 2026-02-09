@@ -54,7 +54,9 @@ function App() {
           }
         );
       } catch (err) {
+        console.log(err, (err as any).stack);
         setError(`Failed to initialize: ${err instanceof Error ? err.message : String(err)}`);
+        throw err;
       }
     };
 

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,16 +14,18 @@
       align-items: center;
       gap: 1rem;
     }
+
     .qr-container img {
       background: white;
       padding: 1rem;
       border-radius: 8px;
     }
+
     .status {
       position: fixed;
       bottom: 10px;
       left: 10px;
-      background: rgba(0,0,0,0.8);
+      background: rgba(0, 0, 0, 0.8);
       color: #0f0;
       padding: 0.5rem 1rem;
       border-radius: 4px;
@@ -30,11 +33,13 @@
       font-size: 14px;
       z-index: 1000;
     }
+
     .status.error {
       color: #f00;
     }
   </style>
 </head>
+
 <body>
   <div class="reveal">
     <div class="slides">
@@ -86,7 +91,8 @@
     const sessionUid = params.get('sessionUid');
 
 
-    const hostToken = params.get('token') || '';
+    const maybeHostToken = params.get('token') || '';
+    const userToken = params.get('userToken') || '';
     const wsUrl = params.get('wsUrl') || 'ws://localhost:3002';
     const webUiUrl = params.get('webUiUrl') || 'http://localhost:5173';
 
@@ -106,59 +112,67 @@
       console.log(isError ? 'ERROR:' : 'STATUS:', message);
     }
 
-    if (!hostToken) {
-      setStatus('No token provided. Add ?token=YOUR_HOST_TOKEN to URL', true);
-    } else {
-      Reveal.initialize({
-        hash: true,
-        plugins: [RevealInteract()],
-        revealInteract: {
-          hostToken: hostToken,
-          webUiUrl: webUiUrl,
-          apiUrl: apiUrl,
-          wsUrl: wsUrl
-        }
-      }).then(async () => {
-        const plugin = Reveal.getPlugin('revealInteract');
+    Promise.resolve(maybeHostToken || fetch('/token').then(r => r.text()))
+      .then(hostToken => {
 
-        if (plugin && plugin.isInitialized()) {
-          // Listen for connection status changes
-          plugin.onConnectionChange((connected) => {
-            connectionStatus = connected ? 'connected' : 'disconnected';
-            updateStatus();
+        if (!hostToken) {
+          setStatus('No token provided. Add ?token=YOUR_HOST_TOKEN to URL', true);
+        } else {
+          Reveal.initialize({
+            hash: true,
+            plugins: [RevealInteract()],
+            revealInteract: {
+              hostToken,
+              userToken,
+              webUiUrl,
+              apiUrl,
+              wsUrl
+            }
+          }).then(async () => {
+            const plugin = Reveal.getPlugin('revealInteract');
+
+            if (plugin && plugin.isInitialized()) {
+              // Listen for connection status changes
+              plugin.onConnectionChange((connected) => {
+                connectionStatus = connected ? 'connected' : 'disconnected';
+                updateStatus();
+              });
+
+              // Set initial status
+              connectionStatus = plugin.isConnected() ? 'connected' : 'disconnected';
+              updateStatus();
+
+              // Generate and display QR code using the new session UID format
+              const qrUrl = plugin.getQRCodeUrl();
+              if (qrUrl) {
+                try {
+                  const qrDataUrl = await plugin.generateQRCode(qrUrl);
+                  const qrImg = document.getElementById('qr-code');
+                  qrImg.src = qrDataUrl;
+                  qrImg.style.display = 'block';
+                  document.getElementById('web-url').href = qrUrl;
+                  console.log('QR URL:', qrUrl);
+                } catch (err) {
+                  console.error('Failed to generate QR code:', err);
+                }
+              }
+            } else {
+              setStatus('Plugin failed to initialize - check console', true);
+            }
+          }).catch(err => {
+            setStatus('Reveal.js initialization failed: ' + err.message, true);
           });
 
-          // Set initial status
-          connectionStatus = plugin.isConnected() ? 'connected' : 'disconnected';
-          updateStatus();
-
-          // Generate and display QR code using the new session UID format
-          const qrUrl = plugin.getQRCodeUrl();
-          if (qrUrl) {
-            try {
-              const qrDataUrl = await plugin.generateQRCode(qrUrl);
-              const qrImg = document.getElementById('qr-code');
-              qrImg.src = qrDataUrl;
-              qrImg.style.display = 'block';
-              document.getElementById('web-url').href = qrUrl;
-              console.log('QR URL:', qrUrl);
-            } catch (err) {
-              console.error('Failed to generate QR code:', err);
-            }
-          }
-        } else {
-          setStatus('Plugin failed to initialize - check console', true);
+          // Track slide changes in status
+          Reveal.on('slidechanged', event => {
+            currentSlide = `${event.indexh}.${event.indexv}`;
+            updateStatus();
+          });
         }
-      }).catch(err => {
-        setStatus('Reveal.js initialization failed: ' + err.message, true);
+
       });
 
-      // Track slide changes in status
-      Reveal.on('slidechanged', event => {
-        currentSlide = `${event.indexh}.${event.indexv}`;
-        updateStatus();
-      });
-    }
   </script>
 </body>
+
 </html>
