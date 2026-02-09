@@ -135,15 +135,15 @@ function App() {
   return (
     <div className="app">
       <header className="header">
+        <h1>{title}</h1>
+        {subtitle && <h2 className="subtitle">{subtitle}</h2>}
+        <p className="page-indicator">Page: {currentPage}</p>
         <div className="connection-status">
           <span
             className={`status-dot ${connected ? "connected" : "disconnected"}`}
           />
-          {connected ? "Connected" : "Disconnected"}
+          {connected ? "ON" : "OFF"}
         </div>
-        <h1>{title}</h1>
-        {subtitle && <h2 className="subtitle">{subtitle}</h2>}
-        <p className="page-indicator">Page: {currentPage}</p>
       </header>
 
       <main className="content">
