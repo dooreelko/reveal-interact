@@ -190,13 +190,10 @@ const loginFunction = new Function<[string], LoginResponse, ApiRuntimeContext>(
     // Reuse existing uid if present, otherwise generate new one
     const uid = existingUid || generateId();
 
-    if (!existingUid) {
-      // Store user record for this session (only for new users)
-      await userStore.store(userToken, { token: userToken, uid });
-      // Set user cookie
-      ctx.setCookie("uid", uid, { httpOnly: true, sameSite: "lax" });
-      ctx.setCookie("token", userToken, { httpOnly: true, sameSite: "lax" });
-    }
+    await userStore.store(userToken, { token: userToken, uid });
+
+    ctx.setCookie("uid", uid, { httpOnly: true, sameSite: "lax" });
+    ctx.setCookie("token", userToken, { httpOnly: true, sameSite: "lax" });
 
     return { uid };
   }
