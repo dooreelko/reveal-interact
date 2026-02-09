@@ -38,11 +38,12 @@ export class LocalDockerStack extends TerraformStack {
     const bundleDir = path.resolve(__dirname, "../dist/docker");
     const dockerFile = path.join(bundleDir, "Dockerfile");
     const appImage = new Image(this, "app-image", {
-      name: "revint-app:latest",
+      name: `revint-app:${new Date().getTime()}`,
       buildAttribute: {
         context: bundleDir,
         dockerfile: dockerFile,
       },
+
     });
 
     // PostgreSQL image
