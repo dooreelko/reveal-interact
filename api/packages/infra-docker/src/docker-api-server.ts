@@ -20,6 +20,25 @@ export class DockerApiServer<TRoutes extends ApiRoutes = ApiRoutes> {
 
   createApp(express: typeof import("express")): Application {
     const app = express();
+
+    // CORS middleware - matching Cloudflare implementation
+    app.use((req, res, next) => {
+      const origin = req.headers.origin;
+      if (origin) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+      }
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-session-token, Cookie");
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+
+      if (req.method === "OPTIONS") {
+        res.status(204).end();
+        return;
+      }
+
+      next();
+    });
+
     app.use(express.json());
 
     for (const name of this.api.listRoutes()) {
