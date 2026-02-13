@@ -343,7 +343,7 @@ export default function RevealInteract(): {
       const pluginConfig = config.revealInteract;
 
       if (!pluginConfig) {
-        console.warn("RevealInteract: No configuration provided. Plugin disabled.");
+        console.warn("RevealInteract: No configuration provided. Plugin disabled. Call init later.");
         return;
       }
 
